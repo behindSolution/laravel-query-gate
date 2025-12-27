@@ -202,6 +202,6 @@ Query Gate relies on Laravel's pagination and query builder. You can write integ
 Run the package test suite locally with:
 
 ```bash
-vendor/bin/phpunit --display-deprecations --testdox
+php artisan test --display-deprecations --testdox
 ```
 
