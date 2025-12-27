@@ -3,11 +3,11 @@
 namespace BehindSolution\LaravelQueryGate\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Post extends Model
+class Comment extends Model
 {
-    protected $table = 'posts';
+    protected $table = 'comments';
 
     protected $guarded = [];
 
@@ -15,9 +15,10 @@ class Post extends Model
 
     protected $connection = 'testbench';
 
-    public function comments(): HasMany
+    public function post(): BelongsTo
     {
-        return $this->hasMany(Comment::class, 'post_id');
+        return $this->belongsTo(Post::class, 'post_id');
     }
 }
+
 

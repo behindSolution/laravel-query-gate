@@ -214,5 +214,49 @@ class QueryExecutorTest extends TestCase
             ],
         ], $items[0]);
     }
+
+    public function testExecuteAppliesNestedRelationFilterWithRawFilter(): void
+    {
+        $user = User::query()->create(['name' => 'Alice']);
+        $post = $user->posts()->create(['title' => 'First', 'status' => 'published']);
+        $post->comments()->createMany([
+            ['name' => 'Announcement'],
+            ['name' => 'Second'],
+        ]);
+
+        $request = Request::create('/query', 'GET', [
+            'filter' => [
+                'posts.comments.name' => [
+                    'eq' => 'Announce',
+                ],
+            ],
+        ]);
+
+        $context = new QueryContext(User::class, $request, User::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'filters' => [
+                'posts.comments.name' => 'string',
+            ],
+            'raw_filters' => [
+                'posts.comments.name' => function (Builder $query, string $operator, $value): void {
+                    $query->where('comments.name', 'like', '%' . $value . '%');
+                },
+            ],
+            'query' => function (Builder $query) {
+                return $query->with('posts.comments');
+            },
+        ]);
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+        $items = $result->items();
+        $this->assertCount(1, $items);
+        $this->assertSame('Alice', $items[0]->name);
+        $this->assertTrue(
+            $items[0]->posts->first()->comments->contains('name', 'Announcement')
+        );
+    }
 }
 

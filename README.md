@@ -46,6 +46,9 @@ return [
                 'created_at' => 'date',
                 'posts.title' => ['string', 'max:255'],
             ])
+            ->rawFilters([
+                'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
+            ])
             ->select(['created_at', 'posts.title'])
             ->query(fn ($query, $request) => $query->where('active', true))
             ->middleware(['auth:sanctum'])
@@ -65,6 +68,7 @@ Each model entry can:
 - Provide a `query` closure that receives the Eloquent builder and the current `Request`.
 - Declare additional `middleware` that will run before the query is executed.
 - Call `->filters([...])` to whitelist which fields can be filtered and which validation rules each one must satisfy. Relation filters use dot notation (`'posts.title'`).
+- Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 
 ## Making Requests
@@ -124,6 +128,16 @@ Define allowed filters with `->filters()` and validate incoming values using any
 ```
 filter[posts.title][eq]=News
 filter[created_at][between]=2024-01-01,2024-01-31
+```
+
+When you need to take over the actual query logic, pair the whitelist with `->rawFilters()`. The callback receives the current builder (already scoped to the relation when the filter path contains dots), the operator, the raw value, and the resolved column so you can perform joins or specialised comparisons:
+
+```php
+->filters(['posts.comments.name' => 'string'])
+->rawFilters([
+    'posts.comments.name' => fn ($builder, $operator, $value, $column) =>
+        $builder->where($column, 'ilike', '%' . $value . '%'),
+])
 ```
 
 ### Selecting Columns

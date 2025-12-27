@@ -22,9 +22,10 @@ class FilterParser
     /**
      * @param array<string, array<string, mixed>> $filters
      * @param array<string, string|array<int, string>> $definitions
-     * @return array<int, array{field: string, operator: string, value: mixed}>
+     * @param array<string, callable> $rawCallbacks
+     * @return array<int, array{field: string, operator: string, value: mixed, callback: (callable|null)}>
      */
-    public function parse(array $filters, array $definitions = []): array
+    public function parse(array $filters, array $definitions = [], array $rawCallbacks = []): array
     {
         $parsed = [];
 
@@ -34,6 +35,11 @@ class FilterParser
             }
 
             $rules = $this->resolveRulesForField($field, $definitions);
+            $callback = $rawCallbacks[$field] ?? null;
+
+            if ($callback !== null && !is_callable($callback)) {
+                $callback = null;
+            }
 
             foreach ($operators as $operator => $value) {
                 if (!is_string($operator)) {
@@ -50,7 +56,7 @@ class FilterParser
 
                 if ($rules !== null) {
                     $this->validateValue($field, $operator, $normalizedValue, $rules);
-                } elseif ($definitions !== []) {
+                } elseif ($definitions !== [] && $callback === null) {
                     throw new HttpException(422, sprintf('Filtering by "%s" is not allowed.', $field));
                 }
 
@@ -58,6 +64,7 @@ class FilterParser
                     'field' => $field,
                     'operator' => $operator,
                     'value' => $normalizedValue,
+                    'callback' => $callback,
                 ];
             }
         }

@@ -30,6 +30,11 @@ class QueryGate implements Arrayable
     protected array $filters = [];
 
     /**
+     * @var array<string, Closure>
+     */
+    protected array $rawFilters = [];
+
+    /**
      * @var array<int, string>
      */
     protected array $select = [];
@@ -140,6 +145,28 @@ class QueryGate implements Arrayable
         return $this;
     }
 
+    /**
+     * @param array<string, callable> $callbacks
+     */
+    public function rawFilters(array $callbacks): self
+    {
+        $normalized = [];
+
+        foreach ($callbacks as $field => $callback) {
+            if (!is_string($field) || $field === '' || !is_callable($callback)) {
+                continue;
+            }
+
+            $normalized[$field] = $callback instanceof Closure
+                ? $callback
+                : Closure::fromCallable($callback);
+        }
+
+        $this->rawFilters = $normalized;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         $configuration = [];
@@ -172,6 +199,10 @@ class QueryGate implements Arrayable
 
         if ($this->filters !== []) {
             $configuration['filters'] = $this->filters;
+        }
+
+        if ($this->rawFilters !== []) {
+            $configuration['raw_filters'] = $this->rawFilters;
         }
 
         if ($this->select !== []) {

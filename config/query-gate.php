@@ -21,6 +21,9 @@ return [
         //         'created_at' => 'date',
         //         'posts.title' => ['string', 'max:255'],
         //     ])
+        //     ->rawFilters([
+        //         'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
+        //     ])
         //     ->select(['created_at', 'posts.title'])
         //     ->query(fn ($query, $request) => $query->where('active', true))
         //     ->middleware(['auth:sanctum'])
