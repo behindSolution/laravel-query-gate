@@ -16,7 +16,11 @@ trait HasFilters
     {
         $rawFilters = (array) $context->request->query('filter', []);
         $definitions = is_array($configuration['filters'] ?? null) ? $configuration['filters'] : [];
-        $filters = $this->filterParser()->parse($rawFilters, $definitions);
+        $rawCallbacks = is_array($configuration['raw_filters'] ?? null)
+            ? array_filter($configuration['raw_filters'], static fn ($callback) => is_callable($callback))
+            : [];
+
+        $filters = $this->filterParser()->parse($rawFilters, $definitions, $rawCallbacks);
 
         if ($filters === []) {
             return;

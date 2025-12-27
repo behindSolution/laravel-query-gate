@@ -5,6 +5,7 @@ namespace BehindSolution\LaravelQueryGate\Tests;
 use BehindSolution\LaravelQueryGate\QueryGateServiceProvider;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostPolicy;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
@@ -40,6 +41,7 @@ abstract class TestCase extends Orchestra
         parent::setUp();
         Cache::clear();
 
+        Schema::dropIfExists('comments');
         Schema::dropIfExists('posts');
         Schema::dropIfExists('users');
 
@@ -54,6 +56,13 @@ abstract class TestCase extends Orchestra
             $table->unsignedInteger('user_id')->nullable();
             $table->string('title');
             $table->string('status')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('comments', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('post_id')->nullable();
+            $table->string('name');
             $table->timestamp('created_at')->nullable();
         });
 

@@ -14,14 +14,19 @@ class AppliesFilters
         foreach ($filters as $definition) {
             $field = $definition['field'] ?? null;
             $operator = $definition['operator'] ?? null;
+            $value = $definition['value'] ?? null;
+            $callback = $definition['callback'] ?? null;
 
             if (!$field || !$operator) {
                 continue;
             }
 
-            $value = $definition['value'] ?? null;
+            if (is_callable($callback)) {
+                $this->applyRawFilter($query, (string) $field, (string) $operator, $value, $callback);
+                continue;
+            }
 
-            $this->applyFilter($query, $field, $operator, $value);
+            $this->applyFilter($query, (string) $field, (string) $operator, $value);
         }
 
         return $query;
@@ -47,6 +52,30 @@ class AppliesFilters
         }
 
         $this->applyOperator($query, $field, $operator, $value);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    protected function applyRawFilter(Builder $query, string $field, string $operator, $value, callable $callback): void
+    {
+        if (str_contains($field, '.')) {
+            $segments = explode('.', $field);
+            $column = array_pop($segments);
+            $relationPath = implode('.', $segments);
+
+            if ($relationPath === '' || $column === null || $column === '') {
+                return;
+            }
+
+            $query->whereHas($relationPath, function (Builder $relationQuery) use ($callback, $operator, $value, $column, $field) {
+                $callback($relationQuery, $operator, $value, $column, $field);
+            });
+
+            return;
+        }
+
+        $callback($query, $operator, $value, $field, $field);
     }
 
     /**
