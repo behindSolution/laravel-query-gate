@@ -83,11 +83,11 @@ class AppliesFilters
                 break;
             case 'like':
                 if ($value !== null) {
-                    $query->where($qualifiedField, 'like', $value);
+                    $query->where($qualifiedField, 'like', $this->buildLikePattern((string) $value));
                 }
                 break;
             case 'in':
-                $values = is_array($value) ? $value : [];
+                $values = is_array($value) ? array_values(array_filter($value, static fn ($item) => $item !== null)) : [];
                 if (!empty($values)) {
                     $query->whereIn($qualifiedField, $values);
                 }
@@ -98,6 +98,19 @@ class AppliesFilters
                 }
                 break;
         }
+    }
+
+    protected function buildLikePattern(string $value): string
+    {
+        if ($value === '') {
+            return $value;
+        }
+
+        if (strpbrk($value, '%_') === false) {
+            return '%' . addcslashes($value, '%_') . '%';
+        }
+
+        return $value;
     }
 }
 
