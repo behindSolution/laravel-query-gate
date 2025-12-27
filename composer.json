@@ -1,5 +1,5 @@
 {
-    "name": "behind-solution/laravel-query-gate",
+    "name": "BehindSolution/laravel-query-gate",
     "description": "Generic HTTP gateway for Laravel Eloquent queries.",
     "type": "library",
     "license": "MIT",
