@@ -19,8 +19,11 @@ trait HasFilters
         $rawCallbacks = is_array($configuration['raw_filters'] ?? null)
             ? array_filter($configuration['raw_filters'], static fn ($callback) => is_callable($callback))
             : [];
+        $allowedOperators = is_array($configuration['filter_operators'] ?? null)
+            ? $configuration['filter_operators']
+            : [];
 
-        $filters = $this->filterParser()->parse($rawFilters, $definitions, $rawCallbacks);
+        $filters = $this->filterParser()->parse($rawFilters, $definitions, $rawCallbacks, $allowedOperators);
 
         if ($filters === []) {
             return;

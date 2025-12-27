@@ -21,6 +21,10 @@ return [
         //         'created_at' => 'date',
         //         'posts.title' => ['string', 'max:255'],
         //     ])
+        //     ->allowedFilters([
+        //         'created_at' => ['eq', 'between'],
+        //         'posts.title' => ['like'],
+        //     ])
         //     ->rawFilters([
         //         'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
         //     ])

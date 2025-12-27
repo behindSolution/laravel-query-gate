@@ -241,8 +241,8 @@ class QueryExecutorTest extends TestCase
                 'posts.comments.name' => 'string',
             ],
             'raw_filters' => [
-                'posts.comments.name' => function (Builder $query, string $operator, $value): void {
-                    $query->where('comments.name', 'like', '%' . $value . '%');
+                'posts.comments.name' => function (Builder $query, string $operator, $value, string $column): void {
+                    $query->where($column, 'like', '%' . $value . '%');
                 },
             ],
             'query' => function (Builder $query) {
@@ -257,6 +257,67 @@ class QueryExecutorTest extends TestCase
         $this->assertTrue(
             $items[0]->posts->first()->comments->contains('name', 'Announcement')
         );
+    }
+
+    public function testExecuteRejectsOperatorNotWhitelisted(): void
+    {
+        Post::query()->create(['title' => 'Sample', 'status' => 'active']);
+
+        $request = Request::create('/query', 'GET', [
+            'filter' => [
+                'status' => [
+                    'like' => 'act',
+                ],
+            ],
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The "like" operator is not allowed for the "status" filter.');
+
+        $executor->execute($context, [
+            'filters' => [
+                'status' => 'string',
+            ],
+            'filter_operators' => [
+                'status' => ['eq'],
+            ],
+        ]);
+    }
+
+    public function testExecuteAllowsWhitelistedOperator(): void
+    {
+        Post::query()->create(['title' => 'Alpha', 'status' => 'active']);
+        Post::query()->create(['title' => 'Beta', 'status' => 'archived']);
+
+        $request = Request::create('/query', 'GET', [
+            'filter' => [
+                'title' => [
+                    'like' => 'alp',
+                ],
+            ],
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'filters' => [
+                'title' => 'string',
+            ],
+            'filter_operators' => [
+                'title' => ['like'],
+            ],
+        ]);
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+        $items = $result->items();
+        $this->assertCount(1, $items);
+        $this->assertSame('Alpha', $items[0]->title);
     }
 }
 

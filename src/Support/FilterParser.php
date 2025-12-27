@@ -23,9 +23,10 @@ class FilterParser
      * @param array<string, array<string, mixed>> $filters
      * @param array<string, string|array<int, string>> $definitions
      * @param array<string, callable> $rawCallbacks
+     * @param array<string, string|array<int, string>> $allowedOperators
      * @return array<int, array{field: string, operator: string, value: mixed, callback: (callable|null)}>
      */
-    public function parse(array $filters, array $definitions = [], array $rawCallbacks = []): array
+    public function parse(array $filters, array $definitions = [], array $rawCallbacks = [], array $allowedOperators = []): array
     {
         $parsed = [];
 
@@ -41,6 +42,8 @@ class FilterParser
                 $callback = null;
             }
 
+            $allowed = $this->resolveAllowedOperators($field, $allowedOperators);
+
             foreach ($operators as $operator => $value) {
                 if (!is_string($operator)) {
                     continue;
@@ -50,6 +53,10 @@ class FilterParser
 
                 if (!in_array($operator, self::SUPPORTED_OPERATORS, true)) {
                     continue;
+                }
+
+                if ($allowed !== null && !in_array($operator, $allowed, true)) {
+                    throw new HttpException(422, sprintf('The "%s" operator is not allowed for the "%s" filter.', $operator, $field));
                 }
 
                 $normalizedValue = $this->normalizeValue($value, $operator, $field);
@@ -182,6 +189,46 @@ class FilterParser
         if ($validator->fails()) {
             throw new HttpException(422, $validator->errors()->first());
         }
+    }
+
+    /**
+     * @param array<string, string|array<int, string>> $allowed
+     * @return array<int, string>|null
+     */
+    protected function resolveAllowedOperators(string $field, array $allowed): ?array
+    {
+        if (!array_key_exists($field, $allowed)) {
+            return null;
+        }
+
+        $operators = $allowed[$field];
+
+        if (is_string($operators)) {
+            $normalized = $this->normalizeOperator($operators);
+
+            return $normalized === null ? null : [$normalized];
+        }
+
+        if (is_array($operators)) {
+            $normalized = array_values(array_filter(array_map(function ($operator) {
+                return $this->normalizeOperator($operator);
+            }, $operators)));
+
+            return $normalized === [] ? null : $normalized;
+        }
+
+        return null;
+    }
+
+    protected function normalizeOperator($operator): ?string
+    {
+        if (!is_string($operator) || $operator === '') {
+            return null;
+        }
+
+        $operator = strtolower($operator);
+
+        return in_array($operator, self::SUPPORTED_OPERATORS, true) ? $operator : null;
     }
 }
 
