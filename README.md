@@ -165,3 +165,9 @@ composer require behind-solution/laravel-query-gate:^1.0
 
 Query Gate relies on Laravel's pagination and query builder. You can write integration tests in the host application by hitting the registered route and asserting the JSON structure or pagination metadata returned for your configured models.
 
+Run the package test suite locally with:
+
+```bash
+vendor/bin/phpunit --display-deprecations --testdox
+```
+

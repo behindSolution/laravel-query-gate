@@ -17,12 +17,21 @@
             "BehindSolution\\LaravelQueryGate\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "BehindSolution\\LaravelQueryGate\\Tests\\": "tests/"
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [
                 "BehindSolution\\LaravelQueryGate\\QueryGateServiceProvider"
             ]
         }
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0",
+        "phpunit/phpunit": "^10.5"
     },
     "minimum-stability": "stable",
     "prefer-stable": true

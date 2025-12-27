@@ -1,0 +1,80 @@
+<?php
+
+namespace BehindSolution\LaravelQueryGate\Tests\Feature;
+
+use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\TestCase;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+class ResolveModelMiddlewareTest extends TestCase
+{
+    public function testThrowsWhenModelParameterIsMissing(): void
+    {
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET');
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The model query parameter is required.');
+
+        $middleware->handle($request, static function () {
+            return null;
+        });
+    }
+
+    public function testThrowsWhenModelDoesNotExist(): void
+    {
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => 'NonExistingClass',
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The model parameter must reference an Eloquent model class.');
+
+        $middleware->handle($request, static function () {
+            return null;
+        });
+    }
+
+    public function testThrowsWhenModelIsNotExposed(): void
+    {
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The requested model is not exposed through Query Gate.');
+
+        $middleware->handle($request, static function () {
+            return null;
+        });
+    }
+
+    public function testPopulatesRequestAttributesWhenModelIsExposed(): void
+    {
+        config()->set('query-gate.models.' . Post::class, []);
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $dispatched = false;
+        $response = $middleware->handle($request, static function ($handledRequest) use (&$dispatched) {
+            $dispatched = true;
+
+            return response()->noContent();
+        });
+
+        $this->assertTrue($dispatched);
+        $this->assertSame(Post::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertIsArray($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION));
+        $this->assertNotNull($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_BUILDER));
+        $this->assertSame(204, $response->getStatusCode());
+    }
+}
+
+
