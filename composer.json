@@ -1,0 +1,30 @@
+{
+    "name": "behindSolution/query-gate",
+    "description": "Generic HTTP gateway for Laravel Eloquent queries.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/database": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/pagination": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/pipeline": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/routing": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/http": "^9.0|^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "BehindSolution\\QueryGate\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "BehindSolution\\QueryGate\\QueryGateServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
+
