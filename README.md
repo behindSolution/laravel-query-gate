@@ -46,6 +46,10 @@ return [
                 'created_at' => 'date',
                 'posts.title' => ['string', 'max:255'],
             ])
+            ->allowedFilters([
+                'created_at' => ['eq', 'between'],
+                'posts.title' => ['like'],
+            ])
             ->rawFilters([
                 'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
             ])
@@ -68,6 +72,7 @@ Each model entry can:
 - Provide a `query` closure that receives the Eloquent builder and the current `Request`.
 - Declare additional `middleware` that will run before the query is executed.
 - Call `->filters([...])` to whitelist which fields can be filtered and which validation rules each one must satisfy. Relation filters use dot notation (`'posts.title'`).
+- Call `->allowedFilters([...])` to restrict which operators are accepted per field (for example `['created_at' => ['eq', 'between']]`).
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 
@@ -105,17 +110,13 @@ Ordering is applied exactly as provided and does not assume a primary key.
 
 ### Pagination
 
-You can choose between classic pagination, cursor pagination, or no pagination:
+You can choose between classic pagination (default), cursor pagination, or no pagination by configuring the builder:
 
-```
-pagination=paginate   # default
-pagination=cursor
-pagination=none
-per_page=50
-cursor=opaque-cursor-string
+```php
+QueryGate::make()->paginationMode('cursor'); // or 'none'
 ```
 
-When `pagination=none`, the response returns the full collection. For `cursor`, you must pass the cursor token returned by the previous response.
+When you disable pagination (`none`), the full collection is returned. For cursor pagination the next-page token provided in the response should be echoed back via the `cursor` query parameter. The page size follows the host configuration (`config('query-gate.pagination.per_page')` and any per-model overrides).
 
 ### Caching
 
@@ -134,10 +135,11 @@ When you need to take over the actual query logic, pair the whitelist with `->ra
 
 ```php
 ->filters(['posts.comments.name' => 'string'])
+->allowedFilters(['posts.comments.name' => ['like']])
 ->rawFilters([
     'posts.comments.name' => fn ($builder, $operator, $value, $column) =>
-        $builder->where($column, 'ilike', '%' . $value . '%'),
-])
+        $builder->where($column, 'like', '%' . $value . '%'),
+]);
 ```
 
 ### Selecting Columns
@@ -200,6 +202,6 @@ Query Gate relies on Laravel's pagination and query builder. You can write integ
 Run the package test suite locally with:
 
 ```bash
-vendor/bin/phpunit --display-deprecations --testdox
+php artisan test --display-deprecations --testdox
 ```
 

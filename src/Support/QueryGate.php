@@ -30,6 +30,11 @@ class QueryGate implements Arrayable
     protected array $filters = [];
 
     /**
+     * @var array<string, array<int, string>>
+     */
+    protected array $allowedFilterOperators = [];
+
+    /**
      * @var array<string, Closure>
      */
     protected array $rawFilters = [];
@@ -134,6 +139,35 @@ class QueryGate implements Arrayable
     }
 
     /**
+     * @param array<string, string|array<int, string>> $operators
+     */
+    public function allowedFilters(array $operators): self
+    {
+        $normalized = [];
+
+        foreach ($operators as $field => $values) {
+            if (!is_string($field) || $field === '') {
+                continue;
+            }
+
+            if (is_string($values)) {
+                $normalized[$field] = [strtolower($values)];
+                continue;
+            }
+
+            if (is_array($values)) {
+                $normalized[$field] = array_values(array_filter(array_map(static function ($operator) {
+                    return is_string($operator) && $operator !== '' ? strtolower($operator) : null;
+                }, $values)));
+            }
+        }
+
+        $this->allowedFilterOperators = $normalized;
+
+        return $this;
+    }
+
+    /**
      * @param array<int, string> $columns
      */
     public function select(array $columns): self
@@ -199,6 +233,10 @@ class QueryGate implements Arrayable
 
         if ($this->filters !== []) {
             $configuration['filters'] = $this->filters;
+        }
+
+        if ($this->allowedFilterOperators !== []) {
+            $configuration['filter_operators'] = $this->allowedFilterOperators;
         }
 
         if ($this->rawFilters !== []) {

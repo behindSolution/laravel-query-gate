@@ -68,14 +68,14 @@ class AppliesFilters
                 return;
             }
 
-            $query->whereHas($relationPath, function (Builder $relationQuery) use ($callback, $operator, $value, $column, $field) {
-                $callback($relationQuery, $operator, $value, $column, $field);
+            $query->whereHas($relationPath, function (Builder $relationQuery) use ($callback, $operator, $value, $column) {
+                $callback($relationQuery, $operator, $value, $column);
             });
 
             return;
         }
 
-        $callback($query, $operator, $value, $field, $field);
+        $callback($query, $operator, $value, $field);
     }
 
     /**

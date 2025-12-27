@@ -23,14 +23,11 @@ trait HasPagination
             $configured = $configuration['pagination'];
         }
 
-        $mode = $context->request->query('pagination');
-        if (!is_string($mode) || $mode === '') {
-            $mode = $configured['mode'] ?? null;
-        }
+        $mode = $configured['mode'] ?? null;
 
-        $perPage = $context->request->query('per_page');
-        if (!is_numeric($perPage) && array_key_exists('per_page', $configured)) {
-            $perPage = $configured['per_page'];
+        $perPage = null;
+        if (array_key_exists('per_page', $configured) && is_numeric($configured['per_page'])) {
+            $perPage = (int) $configured['per_page'];
         }
 
         $cursor = $context->request->query('cursor');

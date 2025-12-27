@@ -15,6 +15,10 @@ class QueryGateBuilderTest extends TestCase
                 'created_at' => 'date',
                 'posts.title' => ['string', 'max:255'],
             ])
+            ->allowedFilters([
+                'created_at' => ['eq', 'between'],
+                'posts.title' => ['like'],
+            ])
             ->select(['created_at', 'posts.title'])
             ->rawFilters([
                 'posts.title' => fn ($builder, $operator, $value, $column) => null,
@@ -74,6 +78,14 @@ class QueryGateBuilderTest extends TestCase
         $this->assertArrayHasKey('raw_filters', $configuration);
         $this->assertArrayHasKey('posts.title', $configuration['raw_filters']);
         $this->assertTrue(is_callable($configuration['raw_filters']['posts.title']));
+
+        $this->assertSame(
+            [
+                'created_at' => ['eq', 'between'],
+                'posts.title' => ['like'],
+            ],
+            $configuration['filter_operators']
+        );
     }
 
     public function testStoresPaginationMode(): void
