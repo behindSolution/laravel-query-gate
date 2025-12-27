@@ -1,10 +1,14 @@
 <?php
 
 namespace BehindSolution\LaravelQueryGate\Actions;
+
+use BehindSolution\LaravelQueryGate\Support\CacheRegistry;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ActionExecutor
@@ -32,13 +36,19 @@ class ActionExecutor
 
         $payload = $this->validatePayload($request, $actionConfiguration);
 
-        $this->ensureAuthorized($request, $model, $actionConfiguration);
+        $this->ensureAuthorized($request, $model, $actionConfiguration, $action);
 
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
-            return $actionConfiguration['handle']($request, $model, $payload);
+            $result = $actionConfiguration['handle']($request, $model, $payload);
+        } else {
+            $result = $this->defaultHandle($action, $request, $model, $payload);
         }
 
-        return $this->defaultHandle($action, $request, $model, $payload);
+        if (in_array($action, ['create', 'update', 'delete'], true)) {
+            $this->flushCache($modelClass, $configuration);
+        }
+
+        return $result;
     }
 
     /**
@@ -117,8 +127,30 @@ class ActionExecutor
         return validator($request->all(), $actionConfiguration['validation'])->validate();
     }
 
-    protected function ensureAuthorized(Request $request, Model $model, array $actionConfiguration): void
+    protected function ensureAuthorized(Request $request, Model $model, array $actionConfiguration, string $action): void
     {
+        if (isset($actionConfiguration['policy'])) {
+            $abilities = $this->normalizePolicyAbilities($actionConfiguration['policy']);
+
+            $gate = Gate::forUser($request->user());
+
+            foreach ($abilities as $ability) {
+                $subject = $action === 'create' ? $model::class : $model;
+
+                try {
+                    $gate->authorize($ability, $subject);
+                } catch (AuthorizationException $exception) {
+                    $message = $exception->getMessage() !== ''
+                        ? $exception->getMessage()
+                        : 'You are not authorized to perform this action.';
+
+                    throw new HttpException(403, $message, $exception);
+                }
+            }
+
+            return;
+        }
+
         if (!isset($actionConfiguration['authorize'])) {
             return;
         }
@@ -132,6 +164,42 @@ class ActionExecutor
         if ($result === false) {
             throw new HttpException(403, 'You are not authorized to perform this action.');
         }
+    }
+
+    /**
+     * @param mixed $abilities
+     * @return array<int, string>
+     */
+    protected function normalizePolicyAbilities($abilities): array
+    {
+        $abilities = is_array($abilities) ? $abilities : [$abilities];
+
+        $normalized = [];
+
+        foreach ($abilities as $ability) {
+            if (!is_string($ability) || $ability === '') {
+                throw new HttpException(500, 'Policy abilities must be non-empty strings.');
+            }
+
+            $normalized[] = $ability;
+        }
+
+        return $normalized;
+    }
+
+    protected function flushCache(string $modelClass, array $configuration): void
+    {
+        if (!isset($configuration['cache']['ttl'])) {
+            return;
+        }
+
+        $name = $configuration['cache']['name'] ?? $modelClass;
+
+        if (!is_string($name) || $name === '') {
+            $name = $modelClass;
+        }
+
+        CacheRegistry::flush($name);
     }
 
     /**

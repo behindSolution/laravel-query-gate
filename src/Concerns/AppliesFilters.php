@@ -32,43 +32,69 @@ class AppliesFilters
      */
     protected function applyFilter(Builder $query, string $field, string $operator, $value): void
     {
+        if (str_contains($field, '.')) {
+            $parts = explode('.', $field);
+            $column = array_pop($parts);
+            $relationPath = implode('.', $parts);
+
+            if ($relationPath !== '' && $column !== '') {
+                $query->whereHas($relationPath, function (Builder $relationQuery) use ($column, $operator, $value) {
+                    $this->applyOperator($relationQuery, $column, $operator, $value);
+                });
+
+                return;
+            }
+        }
+
+        $this->applyOperator($query, $field, $operator, $value);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    protected function applyOperator(Builder $query, string $field, string $operator, $value): void
+    {
+        $qualifiedField = str_contains($field, '.')
+            ? $field
+            : $query->qualifyColumn($field);
+
         switch ($operator) {
             case 'eq':
                 $value === null
-                    ? $query->whereNull($field)
-                    : $query->where($field, '=', $value);
+                    ? $query->whereNull($qualifiedField)
+                    : $query->where($qualifiedField, '=', $value);
                 break;
             case 'neq':
                 $value === null
-                    ? $query->whereNotNull($field)
-                    : $query->where($field, '!=', $value);
+                    ? $query->whereNotNull($qualifiedField)
+                    : $query->where($qualifiedField, '!=', $value);
                 break;
             case 'lt':
-                $query->where($field, '<', $value);
+                $query->where($qualifiedField, '<', $value);
                 break;
             case 'lte':
-                $query->where($field, '<=', $value);
+                $query->where($qualifiedField, '<=', $value);
                 break;
             case 'gt':
-                $query->where($field, '>', $value);
+                $query->where($qualifiedField, '>', $value);
                 break;
             case 'gte':
-                $query->where($field, '>=', $value);
+                $query->where($qualifiedField, '>=', $value);
                 break;
             case 'like':
                 if ($value !== null) {
-                    $query->where($field, 'like', $value);
+                    $query->where($qualifiedField, 'like', $value);
                 }
                 break;
             case 'in':
                 $values = is_array($value) ? $value : [];
                 if (!empty($values)) {
-                    $query->whereIn($field, $values);
+                    $query->whereIn($qualifiedField, $values);
                 }
                 break;
             case 'between':
                 if (is_array($value) && count($value) === 2) {
-                    $query->whereBetween($field, $value);
+                    $query->whereBetween($qualifiedField, $value);
                 }
                 break;
         }

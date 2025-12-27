@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate\Http\Middleware;
 
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -62,13 +63,17 @@ class ResolveModelMiddleware
      */
     protected function resolveConfiguration(string $modelClass): array
     {
-        $configuration = config('query-gate.models.' . $modelClass);
+        $definition = config('query-gate.models.' . $modelClass);
 
-        if (!is_array($configuration)) {
+        if ($definition === null) {
             throw new HttpException(404, 'The requested model is not exposed through Query Gate.');
         }
 
-        return $configuration;
+        if ($definition instanceof QueryGate) {
+            return $definition->toArray();
+        }
+
+        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make().');
     }
 
     protected function createBuilder(string $modelClass): Builder

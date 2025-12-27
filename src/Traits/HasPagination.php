@@ -15,11 +15,28 @@ trait HasPagination
     /**
      * @return mixed
      */
-    protected function applyPagination(QueryContext $context)
+    protected function applyPagination(QueryContext $context, array $configuration = [])
     {
+        $configured = [];
+
+        if (isset($configuration['pagination']) && is_array($configuration['pagination'])) {
+            $configured = $configuration['pagination'];
+        }
+
         $mode = $context->request->query('pagination');
-        $cursor = $context->request->query('cursor');
+        if (!is_string($mode) || $mode === '') {
+            $mode = $configured['mode'] ?? null;
+        }
+
         $perPage = $context->request->query('per_page');
+        if (!is_numeric($perPage) && array_key_exists('per_page', $configured)) {
+            $perPage = $configured['per_page'];
+        }
+
+        $cursor = $context->request->query('cursor');
+        if (!is_string($cursor) || $cursor === '') {
+            $cursor = $configured['cursor'] ?? null;
+        }
 
         $config = $this->paginationResolver()->resolve(
             is_string($mode) ? $mode : null,

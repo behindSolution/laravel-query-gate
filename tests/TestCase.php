@@ -3,6 +3,12 @@
 namespace BehindSolution\LaravelQueryGate\Tests;
 
 use BehindSolution\LaravelQueryGate\QueryGateServiceProvider;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostPolicy;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
@@ -26,8 +32,32 @@ abstract class TestCase extends Orchestra
             'database' => ':memory:',
             'prefix' => '',
         ]);
+        $app['config']->set('cache.default', 'array');
     }
 
-}
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Cache::clear();
 
+        Schema::dropIfExists('posts');
+        Schema::dropIfExists('users');
+
+        Schema::create('users', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('posts', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('user_id')->nullable();
+            $table->string('title');
+            $table->string('status')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Gate::policy(Post::class, PostPolicy::class);
+    }
+}
 

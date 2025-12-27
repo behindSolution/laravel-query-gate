@@ -26,6 +26,8 @@ The service provider is auto-discovered, so no manual registration is required.
 Update `config/query-gate.php` to declare which models are available and how they should be scoped:
 
 ```php
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
+
 return [
     'route' => [
         'prefix' => 'query',
@@ -38,18 +40,22 @@ return [
     ],
 
     'models' => [
-        App\Models\User::class => [
-            'query' => fn ($query, $request) => $query->where('active', true),
-            'middleware' => ['auth:sanctum'],
-            'actions' => [
-                'update' => [
-                    'validation' => [
-                        'name' => ['sometimes', 'string'],
-                    ],
-                ],
-                'delete' => [],
-            ],
-        ],
+        App\Models\User::class => QueryGate::make()
+            ->cache(60, 'users-index')
+            ->filters([
+                'created_at' => 'date',
+                'posts.title' => ['string', 'max:255'],
+            ])
+            ->select(['created_at', 'posts.title'])
+            ->query(fn ($query, $request) => $query->where('active', true))
+            ->middleware(['auth:sanctum'])
+            ->paginationMode('cursor')
+            ->actions(fn ($actions) => $actions
+                ->update(fn ($action) => $action->validations([
+                    'name' => ['sometimes', 'string'],
+                ]))
+                ->delete()
+            ),
     ],
 ];
 ```
@@ -58,6 +64,8 @@ Each model entry can:
 
 - Provide a `query` closure that receives the Eloquent builder and the current `Request`.
 - Declare additional `middleware` that will run before the query is executed.
+- Call `->filters([...])` to whitelist which fields can be filtered and which validation rules each one must satisfy. Relation filters use dot notation (`'posts.title'`).
+- Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 
 ## Making Requests
 
@@ -105,37 +113,53 @@ cursor=opaque-cursor-string
 
 When `pagination=none`, the response returns the full collection. For `cursor`, you must pass the cursor token returned by the previous response.
 
+### Caching
+
+Call `->cache(60, 'users-index')` on the builder to cache list responses for 60 seconds. The optional name lets the host invalidate the cache manually; when omitted the model class name is used. Query Gate hashes the current model, filters, sorts, pagination parameters, and authenticated user identifier when building the cache key, and automatically clears the cache after `create`, `update`, or `delete` actions.
+
+### Filters
+
+Define allowed filters with `->filters()` and validate incoming values using any Laravel validation rule. Requests attempting to filter by a field that was not declared will be rejected with HTTP 422. Relation filters leverage dot notation and support the entire operator set:
+
+```
+filter[posts.title][eq]=News
+filter[created_at][between]=2024-01-01,2024-01-31
+```
+
+### Selecting Columns
+
+Use `->select(['created_at', 'posts.title'])` to limit which attributes are selected and serialized. Query Gate automatically keeps primary and foreign keys required to hydrate relations. Relation selections currently support a single relation depth (e.g. `posts.title`).
+
 ## Actions (Create/Update/Delete)
 
-Models can optionally expose mutable operations by defining them under the `actions` key in the configuration. Each action (`create`, `update`, `delete`) accepts an array with any of the following optional keys:
+Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`) can be customised:
 
-- `validation`: validation rules applied through Laravel's validator.
-- `authorize`: closure that receives the current `Request` and the resolved model (for `create` it is a new instance). Return `false` to abort with HTTP 403.
-- `handle`: closure that receives `($request, $model, $payload)` so you can fully control the persistence workflow.
+- `->validations([...])` applies validation rules before handling the payload.
+- `->policy('ability')` or `->policy(['ability', 'another'])` runs Laravel's policy pipeline (via `Gate::authorize`) for the resolved model.
+- `->authorize(fn ($request, $model) => ...)` keeps the lower-level hook when you need custom logic.
+- `->handle(fn ($request, $model, $payload) => ...)` replaces the default persistence workflow.
 
-If you omit a key, Query Gate uses a sensible default. Leaving the action array empty (`'update' => []`) enables the endpoint with default behavior.
+Omitting the callback keeps the default behaviour for that action.
 
 ```php
-'actions' => [
-    'create' => [
-        'validation' => [
+->actions(fn ($actions) => $actions
+    ->create(fn ($action) => $action
+        ->validations([
             'title' => ['required', 'string'],
             'body' => ['required', 'string'],
-        ],
-        'handle' => function ($request, $model, $payload) {
+        ])
+        ->handle(function ($request, $model, $payload) {
             $model->fill($payload);
             $model->save();
 
             $model->tags()->sync($request->input('tags', []));
 
             return $model->load('tags');
-        },
-    ],
-    'update' => [],
-    'delete' => [
-        'authorize' => fn ($request, $model) => $request->user()->can('delete', $model),
-    ],
-],
+        })
+    )
+    ->update()
+    ->delete(fn ($action) => $action->policy('delete'))
+)
 ```
 
 ### Endpoints

@@ -12,10 +12,11 @@ trait HasFilters
 
     protected ?AppliesFilters $filterApplierInstance = null;
 
-    protected function applyFilters(QueryContext $context): void
+    protected function applyFilters(QueryContext $context, array $configuration = []): void
     {
         $rawFilters = (array) $context->request->query('filter', []);
-        $filters = $this->filterParser()->parse($rawFilters);
+        $definitions = is_array($configuration['filters'] ?? null) ? $configuration['filters'] : [];
+        $filters = $this->filterParser()->parse($rawFilters, $definitions);
 
         if ($filters === []) {
             return;
