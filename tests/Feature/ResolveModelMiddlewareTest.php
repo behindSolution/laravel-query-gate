@@ -3,6 +3,7 @@
 namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Http\Request;
@@ -53,9 +54,28 @@ class ResolveModelMiddlewareTest extends TestCase
         });
     }
 
-    public function testPopulatesRequestAttributesWhenModelIsExposed(): void
+    public function testThrowsWhenLegacyArrayConfigurationIsUsed(): void
     {
         config()->set('query-gate.models.' . Post::class, []);
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Query Gate model definitions must use QueryGate::make().');
+
+        $middleware->handle($request, static function () {
+            return null;
+        });
+    }
+
+    public function testPopulatesRequestAttributesWhenModelIsExposed(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->actions(fn ($actions) => $actions->delete())
+        );
 
         $middleware = app(ResolveModelMiddleware::class);
         $request = Request::create('/query', 'GET', [
