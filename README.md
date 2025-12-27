@@ -10,7 +10,7 @@ Query Gate offers a single HTTP entrypoint that turns incoming query parameters 
 ## Installation
 
 ```bash
-composer require behind-solution/laravel-query-gate
+composer require behindsolution/laravel-query-gate
 ```
 
 Publish the configuration file when you need to customize the route prefix, middleware, pagination defaults, or exposed models:
