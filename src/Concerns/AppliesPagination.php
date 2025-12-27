@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Concerns;
+namespace BehindSolution\LaravelQueryGate\Concerns;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;

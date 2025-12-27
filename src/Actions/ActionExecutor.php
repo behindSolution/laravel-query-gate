@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Actions;
+namespace BehindSolution\LaravelQueryGate\Actions;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;

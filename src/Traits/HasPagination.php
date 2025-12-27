@@ -1,10 +1,10 @@
 <?php
 
-namespace BehindSolution\QueryGate\Traits;
+namespace BehindSolution\LaravelQueryGate\Traits;
 
-use BehindSolution\QueryGate\Concerns\AppliesPagination;
-use BehindSolution\QueryGate\Query\QueryContext;
-use BehindSolution\QueryGate\Support\PaginationResolver;
+use BehindSolution\LaravelQueryGate\Concerns\AppliesPagination;
+use BehindSolution\LaravelQueryGate\Query\QueryContext;
+use BehindSolution\LaravelQueryGate\Support\PaginationResolver;
 
 trait HasPagination
 {

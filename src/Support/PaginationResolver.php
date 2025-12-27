@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Support;
+namespace BehindSolution\LaravelQueryGate\Support;
 
 class PaginationResolver
 {

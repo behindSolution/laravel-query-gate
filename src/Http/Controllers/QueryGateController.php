@@ -1,11 +1,11 @@
 <?php
 
-namespace BehindSolution\QueryGate\Http\Controllers;
+namespace BehindSolution\LaravelQueryGate\Http\Controllers;
 
-use BehindSolution\QueryGate\Actions\ActionExecutor;
-use BehindSolution\QueryGate\Http\Middleware\ResolveModelMiddleware;
-use BehindSolution\QueryGate\Query\QueryContext;
-use BehindSolution\QueryGate\Query\QueryExecutor;
+use BehindSolution\LaravelQueryGate\Actions\ActionExecutor;
+use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
+use BehindSolution\LaravelQueryGate\Query\QueryContext;
+use BehindSolution\LaravelQueryGate\Query\QueryExecutor;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;

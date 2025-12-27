@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Concerns;
+namespace BehindSolution\LaravelQueryGate\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 

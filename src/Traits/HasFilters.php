@@ -1,10 +1,10 @@
 <?php
 
-namespace BehindSolution\QueryGate\Traits;
+namespace BehindSolution\LaravelQueryGate\Traits;
 
-use BehindSolution\QueryGate\Concerns\AppliesFilters;
-use BehindSolution\QueryGate\Query\QueryContext;
-use BehindSolution\QueryGate\Support\FilterParser;
+use BehindSolution\LaravelQueryGate\Concerns\AppliesFilters;
+use BehindSolution\LaravelQueryGate\Query\QueryContext;
+use BehindSolution\LaravelQueryGate\Support\FilterParser;
 
 trait HasFilters
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace BehindSolution\QueryGate;
+namespace BehindSolution\LaravelQueryGate;
 
-use BehindSolution\QueryGate\Http\Controllers\QueryGateController;
-use BehindSolution\QueryGate\Http\Middleware\ResolveModelMiddleware;
+use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
+use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 

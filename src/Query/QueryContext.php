@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Query;
+namespace BehindSolution\LaravelQueryGate\Query;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;

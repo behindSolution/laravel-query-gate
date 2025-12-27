@@ -14,13 +14,13 @@
     },
     "autoload": {
         "psr-4": {
-            "BehindSolution\\QueryGate\\": "src/"
+            "BehindSolution\\LaravelQueryGate\\": "src/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "BehindSolution\\QueryGate\\QueryGateServiceProvider"
+                "BehindSolution\\LaravelQueryGate\\QueryGateServiceProvider"
             ]
         }
     },

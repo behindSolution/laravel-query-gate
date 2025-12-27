@@ -1,10 +1,10 @@
 <?php
 
-namespace BehindSolution\QueryGate\Query;
+namespace BehindSolution\LaravelQueryGate\Query;
 
-use BehindSolution\QueryGate\Traits\HasFilters;
-use BehindSolution\QueryGate\Traits\HasPagination;
-use BehindSolution\QueryGate\Traits\HasSorting;
+use BehindSolution\LaravelQueryGate\Traits\HasFilters;
+use BehindSolution\LaravelQueryGate\Traits\HasPagination;
+use BehindSolution\LaravelQueryGate\Traits\HasSorting;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 

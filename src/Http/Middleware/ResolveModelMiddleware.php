@@ -1,6 +1,6 @@
 <?php
 
-namespace BehindSolution\QueryGate\Http\Middleware;
+namespace BehindSolution\LaravelQueryGate\Http\Middleware;
 
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
