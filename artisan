@@ -1,0 +1,26 @@
+#!/usr/bin/env php
+<?php
+
+$arguments = $_SERVER['argv'] ?? [];
+array_shift($arguments);
+
+$command = array_shift($arguments);
+
+if ($command === 'test') {
+    require __DIR__ . '/vendor/autoload.php';
+
+    $options = $arguments === []
+        ? ''
+        : ' ' . implode(' ', array_map('escapeshellarg', $arguments));
+
+    passthru(PHP_BINARY . ' vendor/bin/phpunit' . $options, $status);
+
+    exit($status);
+}
+
+fwrite(STDERR, "Available commands:\n");
+fwrite(STDERR, "  test\n");
+
+exit(1);
+
+
