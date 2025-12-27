@@ -155,12 +155,6 @@ If you leave `actions` undefined or omit a specific action, the corresponding en
 
 Query Gate resolves the configured model, then runs any middleware defined in `config/query-gate.php` for that model before executing the query. Use this to enforce authentication, tenancy, throttling, or custom guards per dataset.
 
-Consumers can lock to major versions through Composer constraints:
-
-```bash
-composer require behind-solution/laravel-query-gate:^1.0
-```
-
 ## Testing
 
 Query Gate relies on Laravel's pagination and query builder. You can write integration tests in the host application by hitting the registered route and asserting the JSON structure or pagination metadata returned for your configured models.
