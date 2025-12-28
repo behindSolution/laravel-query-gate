@@ -41,13 +41,9 @@ return [
         'modifiers' => [],
     ],
 
-    'model_aliases' => [
-        'users' => App\Models\User::class,
-        'posts' => App\Models\Post::class,
-    ],
-
     'models' => [
         // App\Models\User::class => QueryGate::make()
+        //      ->alias('users')
         //     ->cache(60)
         //     ->filters([
         //         'created_at' => 'date',

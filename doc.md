@@ -82,10 +82,6 @@ Each model entry can:
 When you want shorter identifiers in the client, declare aliases in the configuration:
 
 ```php
-'model_aliases' => [
-    'users' => App\Models\User::class,
-    'posts' => App\Models\Post::class,
-],
 ```
 
 Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
@@ -139,9 +135,7 @@ When `openAPI.enabled` is `true`, Query Gate also registers two routes:
 
 Each entity registered in `query-gate.models` produces its own set of operations (`GET /query/{alias}`, `POST /query/{alias}`, `PATCH /query/{alias}/{id}`, `DELETE /query/{alias}/{id}`) with tailored summaries and tags. In the OpenAPI UI each model therefore appears as its own section (List Users, Create Users, Update Users, etc.), which keeps navigation and customization intuitive.
 
-If you configure aliases in `model_aliases`, Query Gate also publishes paths using those aliases (e.g. `/query/users`). The canonical FQCN-based path is still available, so existing clients can continue to rely on query parameters if needed.
-
-> **Note:** The pretty `/query/{alias}` endpoints are generated only for models that have an alias. When no alias is defined, clients should continue to call `GET /query?model=App\\Models\\User` (or the equivalent `POST/PATCH/DELETE`) and the OpenAPI document will omit the prettier paths for that model. Add an alias whenever you want a clean REST-like URL.
+If you set an alias with `->alias('users')`, Query Gate publishes routes like `/query/users` in addition to the FQCN-based query-string endpoint. If no alias is defined, only the canonical `GET /query?model=App\\Models\\User` (and corresponding `POST/PATCH/DELETE`) is available.
 
 ### Extending the OpenAPI document
 
