@@ -25,7 +25,7 @@ class AppliesPagination
                     'cursor',
                     $pagination['cursor']
                 );
-            case 'paginate':
+            case 'classic':
             default:
                 return $query->paginate(
                     $pagination['per_page'],

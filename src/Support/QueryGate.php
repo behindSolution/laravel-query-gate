@@ -86,11 +86,11 @@ class QueryGate implements Arrayable
     {
         $mode = strtolower($mode);
 
-        if (!in_array($mode, ['paginate', 'cursor', 'none'], true)) {
-            throw new InvalidArgumentException('Pagination mode must be paginate, cursor, or none.');
+        if (!in_array($mode, ['classic', 'cursor', 'none'], true)) {
+            throw new InvalidArgumentException('Pagination mode must be classic, cursor, or none.');
         }
 
-        $this->paginationMode = $mode;
+        $this->paginationMode = $mode === 'classic' ? 'classic' : $mode;
 
         return $this;
     }

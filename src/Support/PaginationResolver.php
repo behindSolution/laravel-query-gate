@@ -33,11 +33,11 @@ class PaginationResolver
     {
         $mode = $mode ? strtolower($mode) : null;
 
-        if (in_array($mode, ['paginate', 'cursor', 'none'], true)) {
+        if (in_array($mode, ['classic', 'cursor', 'none'], true)) {
             return $mode;
         }
 
-        return 'paginate';
+        return 'classic';
     }
 
     protected function normalizePerPage(?int $perPage): int
