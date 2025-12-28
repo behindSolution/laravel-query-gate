@@ -44,6 +44,11 @@ class QueryGate implements Arrayable
      */
     protected array $select = [];
 
+    /**
+     * @var array<int, string>
+     */
+    protected array $sorts = [];
+
     public static function make(): self
     {
         return new self();
@@ -180,6 +185,18 @@ class QueryGate implements Arrayable
     }
 
     /**
+     * @param array<int, string> $columns
+     */
+    public function sorts(array $columns): self
+    {
+        $this->sorts = array_values(array_filter($columns, static function ($column) {
+            return is_string($column) && $column !== '';
+        }));
+
+        return $this;
+    }
+
+    /**
      * @param array<string, callable> $callbacks
      */
     public function rawFilters(array $callbacks): self
@@ -245,6 +262,10 @@ class QueryGate implements Arrayable
 
         if ($this->select !== []) {
             $configuration['select'] = $this->select;
+        }
+
+        if ($this->sorts !== []) {
+            $configuration['sorts'] = $this->sorts;
         }
 
         return $configuration;

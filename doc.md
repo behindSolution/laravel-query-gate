@@ -75,6 +75,7 @@ Each model entry can:
 - Call `->allowedFilters([...])` to restrict which operators are accepted per field (for example `['created_at' => ['eq', 'between']]`).
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
+- Call `->sorts([...])` to whitelist which columns can be used for sorting (matching the syntax accepted by the `sort` query parameter).
 
 ### Model Aliases
 
@@ -88,6 +89,88 @@ When you want shorter identifiers in the client, declare aliases in the configur
 ```
 
 Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
+
+### OpenAPI
+
+Query Gate can export an OpenAPI document representing every configured model. Adjust the `openAPI` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
+
+```php
+'openAPI' => [
+    'enabled' => true,
+    'title' => 'Query Gate API',
+    'description' => 'Generated documentation for Query Gate endpoints.',
+    'version' => '1.2.0',
+    'route' => '/docs/query-gate', // optional UI route handled by the host
+    'json_route' => '/docs/query-gate.json',
+    'ui' => 'redoc', // or 'swagger-ui'
+    'ui_options' => [
+        'hideDownloadButton' => true,
+    ],
+    'servers' => [
+        ['url' => 'https://api.example.com', 'description' => 'Production'],
+    ],
+    'output' => [
+        'format' => 'json',
+        'path' => storage_path('app/query-gate-openapi.json'),
+    ],
+    'auth' => [
+        'type' => 'http',
+        'scheme' => 'bearer',
+        'bearer_format' => 'JWT',
+    ],
+    'modifiers' => [
+        \App\Docs\QueryGateModifier::class,
+    ],
+],
+```
+
+Generate (or refresh) the spec at any time with:
+
+```bash
+php artisan qg:openapi
+```
+
+Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinations or YAML. The generator reads every `QueryGate::make()` declaration and documents filters, allowed operators, pagination mode, select clauses, actions, policies, cache TTLs, and alias information directly in the OpenAPI schema.
+
+When `openAPI.enabled` is `true`, Query Gate also registers two routes:
+
+- `GET /query/docs.json` (configurable via `openAPI.json_route`) returns the generated document on demand.
+- `GET /query/docs` (configurable via `openAPI.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `openAPI.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `openAPI.ui_options`. Apply custom middleware with `openAPI.middleware` when the docs should be protected. The Blade view embeds the full payload directly (no extra JSON request), which makes response caching straightforward.
+
+Each entity registered in `query-gate.models` produces its own set of operations (`GET /query/{alias}`, `POST /query/{alias}`, `PATCH /query/{alias}/{id}`, `DELETE /query/{alias}/{id}`) with tailored summaries and tags. In the OpenAPI UI each model therefore appears as its own section (List Users, Create Users, Update Users, etc.), which keeps navigation and customization intuitive.
+
+If you configure aliases in `model_aliases`, Query Gate also publishes paths using those aliases (e.g. `/query/users`). The canonical FQCN-based path is still available, so existing clients can continue to rely on query parameters if needed.
+
+> **Note:** The pretty `/query/{alias}` endpoints are generated only for models that have an alias. When no alias is defined, clients should continue to call `GET /query?model=App\\Models\\User` (or the equivalent `POST/PATCH/DELETE`) and the OpenAPI document will omit the prettier paths for that model. Add an alias whenever you want a clean REST-like URL.
+
+### Extending the OpenAPI document
+
+Sometimes you need to document endpoints that sit outside Query Gate (e.g., a dedicated controller for duplicating a user). Use `openAPI.modifiers` to register callables or classes that receive the generated document array and return a modified version:
+
+```php
+use BehindSolution\LaravelQueryGate\Contracts\OpenApi\DocumentModifier;
+
+class QueryGateModifier implements DocumentModifier
+{
+    public function modify(array $document): array
+    {
+        $document['paths']['/users/duplicate'] = [
+            'post' => [
+                'summary' => 'Duplicate user',
+                'tags' => ['Users'],
+                'requestBody' => ['...'],
+                'responses' => [
+                    '201' => ['description' => 'User duplicated.'],
+                ],
+            ],
+        ];
+
+        return $document;
+    }
+}
+```
+
+You can also provide closures directly in the config if the logic is simple. Modifiers run in order, making it easy to compose multiple layers (base metadata, project-specific additions, per-environment tweaks, etc.).
 
 ## Making Requests
 
@@ -122,6 +205,7 @@ sort=created_at:desc,id:asc
 ```
 
 Ordering is applied exactly as provided and does not assume a primary key.
+Call `->sorts(['created_at', 'id'])` on the builder to whitelist the fields clients may sort by; any attempt to sort using a field outside that list will result in HTTP 422.
 
 ### Pagination
 

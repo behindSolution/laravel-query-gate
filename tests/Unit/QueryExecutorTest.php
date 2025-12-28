@@ -352,5 +352,47 @@ class QueryExecutorTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertSame('active', $items[0]->status);
     }
+
+    public function testExecuteAppliesAllowedSorts(): void
+    {
+        Post::query()->create(['title' => 'Alpha', 'status' => 'active']);
+        Post::query()->create(['title' => 'Beta', 'status' => 'archived']);
+
+        $request = Request::create('/query', 'GET', [
+            'sort' => 'title:desc',
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'sorts' => ['title'],
+        ]);
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+        $items = $result->items();
+        $this->assertCount(2, $items);
+        $this->assertSame('Beta', $items[0]->title);
+        $this->assertSame('Alpha', $items[1]->title);
+    }
+
+    public function testExecuteRejectsSortsNotDeclaredInConfiguration(): void
+    {
+        $request = Request::create('/query', 'GET', [
+            'sort' => 'status:asc',
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Sorting by "status" is not allowed.');
+
+        $executor->execute($context, [
+            'sorts' => ['title'],
+        ]);
+    }
 }
 
