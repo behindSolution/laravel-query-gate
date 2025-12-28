@@ -45,17 +45,39 @@ class ResolveModelMiddleware
 
     protected function extractModelClass(Request $request): string
     {
-        $modelClass = $request->query('model');
+        $model = $request->query('model');
 
-        if (!is_string($modelClass) || $modelClass === '') {
+        if (!is_string($model) || trim($model) === '') {
             throw new HttpException(400, 'The model query parameter is required.');
         }
 
-        if (!class_exists($modelClass) || !is_subclass_of($modelClass, Model::class)) {
-            throw new HttpException(400, 'The model parameter must reference an Eloquent model class.');
+        $model = trim($model);
+
+        $aliases = config('query-gate.model_aliases', []);
+
+        if (is_array($aliases) && $aliases !== []) {
+            $normalizedAliases = [];
+
+            foreach ($aliases as $alias => $class) {
+                if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
+                    continue;
+                }
+
+                $normalizedAliases[strtolower($alias)] = $class;
+            }
+
+            $aliasMatch = $normalizedAliases[strtolower($model)] ?? null;
+
+            if (is_string($aliasMatch) && $aliasMatch !== '') {
+                $model = $aliasMatch;
+            }
         }
 
-        return $modelClass;
+        if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
+            throw new HttpException(400, 'The model parameter must reference a configured alias or an Eloquent model class.');
+        }
+
+        return $model;
     }
 
     /**

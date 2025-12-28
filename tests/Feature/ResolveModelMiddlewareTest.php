@@ -32,7 +32,7 @@ class ResolveModelMiddlewareTest extends TestCase
         ]);
 
         $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('The model parameter must reference an Eloquent model class.');
+        $this->expectExceptionMessage('The model parameter must reference a configured alias or an Eloquent model class.');
 
         $middleware->handle($request, static function () {
             return null;
@@ -80,6 +80,33 @@ class ResolveModelMiddlewareTest extends TestCase
         $middleware = app(ResolveModelMiddleware::class);
         $request = Request::create('/query', 'GET', [
             'model' => Post::class,
+        ]);
+
+        $dispatched = false;
+        $response = $middleware->handle($request, static function ($handledRequest) use (&$dispatched) {
+            $dispatched = true;
+
+            return response()->noContent();
+        });
+
+        $this->assertTrue($dispatched);
+        $this->assertSame(Post::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertIsArray($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION));
+        $this->assertNotNull($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_BUILDER));
+        $this->assertSame(204, $response->getStatusCode());
+    }
+
+    public function testResolvesModelAlias(): void
+    {
+        config()->set('query-gate.model_aliases', [
+            'posts' => Post::class,
+        ]);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => 'Posts',
         ]);
 
         $dispatched = false;

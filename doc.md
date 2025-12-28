@@ -76,12 +76,26 @@ Each model entry can:
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 
+### Model Aliases
+
+When you want shorter identifiers in the client, declare aliases in the configuration:
+
+```php
+'model_aliases' => [
+    'users' => App\Models\User::class,
+    'posts' => App\Models\Post::class,
+],
+```
+
+Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
+
 ## Making Requests
 
-All requests are handled by the registered route (default `GET /query`). You must provide the fully-qualified model name:
+All requests are handled by the registered route (default `GET /query`). Provide either the fully-qualified model name or one of the configured aliases:
 
 ```
 GET /query?model=App\Models\User
+GET /query?model=users
 ```
 
 ### Filters
