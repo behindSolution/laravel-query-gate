@@ -513,9 +513,9 @@ class OpenApiGenerator
 
     protected function resolvePathIdentifiers(array $model): array
     {
-        $map = [];
-
         if (!empty($model['aliases'])) {
+            $map = [];
+
             foreach ($model['aliases'] as $alias) {
                 if (!is_string($alias) || $alias === '') {
                     continue;
@@ -525,11 +525,12 @@ class OpenApiGenerator
                 $map[$slug] = $alias;
             }
 
-            return $map !== [] ? $map : [$this->slugifyPathSegment($model['model']) => $model['model']];
+            if ($map !== []) {
+                return $map;
+            }
         }
 
-        $classSlug = $this->slugifyPathSegment($model['model']);
-        return [$classSlug => $model['model']];
+        return [];
     }
 
     protected function slugifyPathSegment(string $value): string

@@ -141,6 +141,8 @@ Each entity registered in `query-gate.models` produces its own set of operations
 
 If you configure aliases in `model_aliases`, Query Gate also publishes paths using those aliases (e.g. `/query/users`). The canonical FQCN-based path is still available, so existing clients can continue to rely on query parameters if needed.
 
+> **Note:** The pretty `/query/{alias}` endpoints are generated only for models that have an alias. When no alias is defined, clients should continue to call `GET /query?model=App\\Models\\User` (or the equivalent `POST/PATCH/DELETE`) and the OpenAPI document will omit the prettier paths for that model. Add an alias whenever you want a clean REST-like URL.
+
 ### Extending the OpenAPI document
 
 Sometimes you need to document endpoints that sit outside Query Gate (e.g., a dedicated controller for duplicating a user). Use `openAPI.modifiers` to register callables or classes that receive the generated document array and return a modified version:
