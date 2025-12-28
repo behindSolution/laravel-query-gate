@@ -17,11 +17,48 @@ class ResolveModelMiddlewareTest extends TestCase
         $request = Request::create('/query', 'GET');
 
         $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('The model query parameter is required.');
+        $this->expectExceptionMessage('The model parameter is required.');
 
         $middleware->handle($request, static function () {
             return null;
         });
+    }
+
+    public function testResolvesModelFromRouteParameter(): void
+    {
+        config()->set('query-gate.model_aliases', [
+            'posts' => Post::class,
+        ]);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+
+        $middleware = app(ResolveModelMiddleware::class);
+
+        $request = Request::create('/query/posts', 'GET');
+
+        $request->setRouteResolver(static function () {
+            return new class {
+                public function parameter(string $key, $default = null)
+                {
+                    if ($key === 'model') {
+                        return 'posts';
+                    }
+
+                    return $default;
+                }
+            };
+        });
+
+        $dispatched = false;
+        $response = $middleware->handle($request, static function ($handledRequest) use (&$dispatched) {
+            $dispatched = true;
+
+            return response()->noContent();
+        });
+
+        $this->assertTrue($dispatched);
+        $this->assertSame(Post::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertSame(204, $response->getStatusCode());
     }
 
     public function testThrowsWhenModelDoesNotExist(): void

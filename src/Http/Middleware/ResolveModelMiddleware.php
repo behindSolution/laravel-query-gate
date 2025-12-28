@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Pipeline\Pipeline;
 use Illuminate\Routing\MiddlewareNameResolver;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ResolveModelMiddleware
@@ -45,39 +46,102 @@ class ResolveModelMiddleware
 
     protected function extractModelClass(Request $request): string
     {
-        $model = $request->query('model');
-
-        if (!is_string($model) || trim($model) === '') {
-            throw new HttpException(400, 'The model query parameter is required.');
-        }
-
-        $model = trim($model);
+        $identifier = $this->resolveRawModelIdentifier($request);
 
         $aliases = config('query-gate.model_aliases', []);
 
-        if (is_array($aliases) && $aliases !== []) {
-            $normalizedAliases = [];
+        $model = $this->resolveAlias($identifier, $aliases);
 
-            foreach ($aliases as $alias => $class) {
-                if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                    continue;
-                }
-
-                $normalizedAliases[strtolower($alias)] = $class;
-            }
-
-            $aliasMatch = $normalizedAliases[strtolower($model)] ?? null;
-
-            if (is_string($aliasMatch) && $aliasMatch !== '') {
-                $model = $aliasMatch;
-            }
+        if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
+            $model = $this->resolveSluggedModel($identifier, $aliases);
         }
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
             throw new HttpException(400, 'The model parameter must reference a configured alias or an Eloquent model class.');
         }
 
+        $request->query->set('model', $model);
+
         return $model;
+    }
+
+    protected function resolveRawModelIdentifier(Request $request): string
+    {
+        $model = $request->route('model');
+
+        if (!is_string($model) || trim($model) === '') {
+            $model = $request->query('model');
+        }
+
+        if (!is_string($model) || trim($model) === '') {
+            throw new HttpException(400, 'The model parameter is required.');
+        }
+
+        return trim($model);
+    }
+
+    /**
+     * @param array<string, string> $aliases
+     */
+    protected function resolveAlias(string $identifier, $aliases): string
+    {
+        if (!is_array($aliases) || $aliases === []) {
+            return $identifier;
+        }
+
+        $normalizedAliases = [];
+
+        foreach ($aliases as $alias => $class) {
+            if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
+                continue;
+            }
+
+            $normalizedAliases[strtolower($alias)] = $class;
+        }
+
+        $aliasMatch = $normalizedAliases[strtolower($identifier)] ?? null;
+
+        if (is_string($aliasMatch) && $aliasMatch !== '') {
+            return $aliasMatch;
+        }
+
+        return $identifier;
+    }
+
+    /**
+     * @param array<string, string> $aliases
+     */
+    protected function resolveSluggedModel(string $identifier, $aliases): string
+    {
+        $target = strtolower($identifier);
+
+        $models = config('query-gate.models', []);
+
+        if (is_array($models)) {
+            foreach ($models as $class => $definition) {
+                if (!is_string($class) || $class === '') {
+                    continue;
+                }
+
+                if (strtolower(Str::slug($class, '-')) === $target) {
+                    return $class;
+                }
+            }
+        }
+
+        if (is_array($aliases)) {
+            foreach ($aliases as $alias => $class) {
+                if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
+                    continue;
+                }
+
+                if (strtolower(Str::slug($alias, '-')) === $target) {
+                    return $class;
+                }
+            }
+        }
+
+        return $identifier;
     }
 
     /**
