@@ -35,7 +35,7 @@ class SwaggerController
             ? $config['swagger']['title']
             : 'Query Gate API';
 
-        $jsonUrl = route('query-gate.swagger.json');
+        $jsonUrl = route('query-gate.openAPI.json');
 
         $ui = is_string($config['swagger']['ui'] ?? null) ? strtolower($config['swagger']['ui']) : 'redoc';
         $uiOptions = is_array($config['swagger']['ui_options'] ?? null) ? $config['swagger']['ui_options'] : [];

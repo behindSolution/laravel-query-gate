@@ -81,7 +81,7 @@ class QueryGateServiceProvider extends ServiceProvider
 
     protected function registerSwaggerRoutes(): void
     {
-        $config = config('query-gate.swagger');
+        $config = config('query-gate.openAPI');
 
         if (!is_array($config)) {
             $config = [];
@@ -97,10 +97,10 @@ class QueryGateServiceProvider extends ServiceProvider
         Route::middleware($middleware)
             ->group(function () use ($uiPath, $jsonPath) {
                 Route::get($jsonPath, [SwaggerController::class, 'json'])
-                    ->name('query-gate.swagger.json');
+                    ->name('query-gate.openAPI.json');
 
                 Route::get($uiPath, [SwaggerController::class, 'ui'])
-                    ->name('query-gate.swagger.ui');
+                    ->name('query-gate.openAPI.ui');
             });
     }
 

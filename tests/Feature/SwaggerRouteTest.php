@@ -10,7 +10,7 @@ class SwaggerRouteTest extends TestCase
 {
     public function testSwaggerJsonRouteReturnsDocument(): void
     {
-        config()->set('query-gate.swagger.enabled', true);
+        config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.models.' . Post::class, QueryGate::make());
 
         $response = $this->get('/query/docs.json');
@@ -23,8 +23,8 @@ class SwaggerRouteTest extends TestCase
 
     public function testSwaggerUiRouteRendersHtml(): void
     {
-        config()->set('query-gate.swagger.enabled', true);
-        config()->set('query-gate.swagger.title', 'Docs UI');
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.openAPI.title', 'Docs UI');
         config()->set('query-gate.models.' . Post::class, QueryGate::make());
 
         $response = $this->get('/query/docs');
@@ -37,8 +37,8 @@ class SwaggerRouteTest extends TestCase
 
     public function testSwaggerJsonRouteAppliesDocumentModifiers(): void
     {
-        config()->set('query-gate.swagger.enabled', true);
-        config()->set('query-gate.swagger.modifiers', [
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.openAPI.modifiers', [
             static function (array $document): array {
                 $document['paths']['/custom-endpoint'] = [
                     'get' => [

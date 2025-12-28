@@ -39,9 +39,9 @@ class SwaggerCommandTest extends TestCase
             )
         );
 
-        config()->set('query-gate.swagger.enabled', true);
-        config()->set('query-gate.swagger.title', 'Test Query Gate');
-        config()->set('query-gate.swagger.output.path', $outputPath);
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.openAPI.title', 'Test Query Gate');
+        config()->set('query-gate.openAPI.output.path', $outputPath);
 
         $this->artisan('qg:swagger', ['--output' => $outputPath])
             ->assertExitCode(0);
@@ -94,9 +94,9 @@ class SwaggerCommandTest extends TestCase
         @unlink($outputPath);
 
         config()->set('query-gate.models.' . Post::class, QueryGate::make());
-        config()->set('query-gate.swagger.enabled', true);
-        config()->set('query-gate.swagger.output.path', $outputPath);
-        config()->set('query-gate.swagger.modifiers', [
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.openAPI.output.path', $outputPath);
+        config()->set('query-gate.openAPI.modifiers', [
             AddCustomPathDocumentModifier::class,
         ]);
 
