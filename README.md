@@ -98,6 +98,7 @@ Filters follow an Azure/OData-inspired structure: `filter[field][operator]=value
 | `gte`    | >=       | `filter[created_at][gte]=2024-01-01`    |
 | `like`   | LIKE     | `filter[email][like]=%example.com`      |
 | `in`     | IN       | `filter[id][in]=1,2,3`                  |
+| `not_in` | NOT IN   | `filter[id][not_in]=4,5,6`              |
 | `between`| BETWEEN  | `filter[created_at][between]=2024-01-01,2024-01-31` |
 
 ### Sorting

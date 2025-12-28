@@ -16,6 +16,7 @@ class FilterParser
         'gte',
         'like',
         'in',
+        'not_in',
         'between',
     ];
 
@@ -85,7 +86,7 @@ class FilterParser
      */
     protected function normalizeValue($value, string $operator, string $field)
     {
-        if ($operator === 'in') {
+        if (in_array($operator, ['in', 'not_in'], true)) {
             $normalized = $this->normalizeArrayValue($value);
 
             if ($normalized === []) {
@@ -171,7 +172,7 @@ class FilterParser
         $data = ['value' => $value];
         $validationRules = [];
 
-        if (in_array($operator, ['in', 'between'], true)) {
+        if (in_array($operator, ['in', 'not_in', 'between'], true)) {
             $arrayRules = ['array'];
 
             if ($operator === 'between') {
