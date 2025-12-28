@@ -111,13 +111,13 @@ Ordering is applied exactly as provided and does not assume a primary key.
 
 ### Pagination
 
-You can choose between classic pagination (default), cursor pagination, or no pagination by configuring the builder:
+You can choose between three pagination modes (`classic`, `cursor`, or `none`) by configuring the builder:
 
 ```php
-QueryGate::make()->paginationMode('cursor'); // or 'none'
+QueryGate::make()->paginationMode('cursor'); // classic is the default
 ```
 
-When you disable pagination (`none`), the full collection is returned. For cursor pagination the next-page token provided in the response should be echoed back via the `cursor` query parameter. The page size follows the host configuration (`config('query-gate.pagination.per_page')` and any per-model overrides).
+When you disable pagination (`none`), the full collection is returned. In `cursor` mode you must pass the `cursor` token supplied by the previous response. In `classic` mode the package delegates to Laravel's `paginate()` with the configured `per_page` size (defaults defined in `config/query-gate.php` or overridden per-model).
 
 ### Caching
 
