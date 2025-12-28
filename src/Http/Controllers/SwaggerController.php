@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate\Http\Controllers;
 
+use BehindSolution\LaravelQueryGate\OpenApi\DocumentExtender;
 use BehindSolution\LaravelQueryGate\OpenApi\OpenApiGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,7 +10,7 @@ use Illuminate\Http\Response;
 
 class SwaggerController
 {
-    public function json(OpenApiGenerator $generator): JsonResponse
+    public function json(OpenApiGenerator $generator, DocumentExtender $extender): JsonResponse
     {
         $config = config('query-gate');
 
@@ -17,7 +18,7 @@ class SwaggerController
             abort(404);
         }
 
-        $document = $generator->generate($config);
+        $document = $extender->extend($generator->generate($config), $config);
 
         return response()->json($document);
     }
@@ -36,9 +37,14 @@ class SwaggerController
 
         $jsonUrl = route('query-gate.swagger.json');
 
+        $ui = is_string($config['swagger']['ui'] ?? null) ? strtolower($config['swagger']['ui']) : 'redoc';
+        $uiOptions = is_array($config['swagger']['ui_options'] ?? null) ? $config['swagger']['ui_options'] : [];
+
         return response()->view('query-gate::swagger', [
             'title' => $title,
             'jsonUrl' => $jsonUrl,
+            'ui' => $ui,
+            'uiOptions' => $uiOptions,
         ]);
     }
 }

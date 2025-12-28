@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Stubs\AddCustomPathDocumentModifier;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 
 class SwaggerCommandTest extends TestCase
@@ -82,6 +83,31 @@ class SwaggerCommandTest extends TestCase
 
         $this->assertArrayHasKey($component . 'Definition', $document['components']['schemas']);
         $this->assertArrayHasKey($component . 'CreateRequest', $document['components']['schemas']);
+
+        @unlink($outputPath);
+    }
+
+    public function testCommandAppliesDocumentModifiers(): void
+    {
+        $outputPath = storage_path('app/query-gate-test-openapi.json');
+
+        @unlink($outputPath);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+        config()->set('query-gate.swagger.enabled', true);
+        config()->set('query-gate.swagger.output.path', $outputPath);
+        config()->set('query-gate.swagger.modifiers', [
+            AddCustomPathDocumentModifier::class,
+        ]);
+
+        $this->artisan('qg:swagger', ['--output' => $outputPath])
+            ->assertExitCode(0);
+
+        $document = json_decode((string) file_get_contents($outputPath), true);
+
+        $this->assertArrayHasKey('/users/duplicate', $document['paths']);
+        $this->assertArrayHasKey('post', $document['paths']['/users/duplicate']);
+        $this->assertSame('Duplicate user', $document['paths']['/users/duplicate']['post']['summary']);
 
         @unlink($outputPath);
     }

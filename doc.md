@@ -100,6 +100,11 @@ Query Gate can export an OpenAPI document representing every configured model. A
     'description' => 'Generated documentation for Query Gate endpoints.',
     'version' => '1.2.0',
     'route' => '/docs/query-gate', // optional UI route handled by the host
+    'json_route' => '/docs/query-gate.json',
+    'ui' => 'redoc', // or 'swagger-ui'
+    'ui_options' => [
+        'hideDownloadButton' => true,
+    ],
     'servers' => [
         ['url' => 'https://api.example.com', 'description' => 'Production'],
     ],
@@ -111,6 +116,9 @@ Query Gate can export an OpenAPI document representing every configured model. A
         'type' => 'http',
         'scheme' => 'bearer',
         'bearer_format' => 'JWT',
+    ],
+    'modifiers' => [
+        \App\Docs\QueryGateModifier::class,
     ],
 ],
 ```
@@ -126,7 +134,36 @@ Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinat
 When `swagger.enabled` is `true`, Query Gate also registers two routes:
 
 - `GET /query/docs.json` (configurable via `swagger.json_route`) returns the generated document on demand.
-- `GET /query/docs` (configurable via `swagger.route`) serves a Swagger UI powered by CDN assets pointing to the JSON endpoint. Apply custom middleware through `swagger.middleware` if the docs should be protected.
+- `GET /query/docs` (configurable via `swagger.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `swagger.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `swagger.ui_options`. Apply custom middleware with `swagger.middleware` when the docs should be protected.
+
+### Extending the OpenAPI document
+
+Sometimes you need to document endpoints that sit outside Query Gate (e.g., a dedicated controller for duplicating a user). Use `swagger.modifiers` to register callables or classes that receive the generated document array and return a modified version:
+
+```php
+use BehindSolution\LaravelQueryGate\Contracts\OpenApi\DocumentModifier;
+
+class QueryGateModifier implements DocumentModifier
+{
+    public function modify(array $document): array
+    {
+        $document['paths']['/users/duplicate'] = [
+            'post' => [
+                'summary' => 'Duplicate user',
+                'tags' => ['Users'],
+                'requestBody' => ['...'],
+                'responses' => [
+                    '201' => ['description' => 'User duplicated.'],
+                ],
+            ],
+        ];
+
+        return $document;
+    }
+}
+```
+
+You can also provide closures directly in the config if the logic is simple. Modifiers run in order, making it easy to compose multiple layers (base metadata, project-specific additions, per-environment tweaks, etc.).
 
 ## Making Requests
 

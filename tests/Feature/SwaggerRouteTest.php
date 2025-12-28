@@ -31,8 +31,31 @@ class SwaggerRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/html; charset=utf-8');
-        $response->assertSee('SwaggerUIBundle', false);
+        $response->assertSee('Redoc.init', false);
         $response->assertSee('Docs UI', false);
+    }
+
+    public function testSwaggerJsonRouteAppliesDocumentModifiers(): void
+    {
+        config()->set('query-gate.swagger.enabled', true);
+        config()->set('query-gate.swagger.modifiers', [
+            static function (array $document): array {
+                $document['paths']['/custom-endpoint'] = [
+                    'get' => [
+                        'summary' => 'Custom endpoint',
+                    ],
+                ];
+
+                return $document;
+            },
+        ]);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+        $response->assertJsonPath('paths./custom-endpoint.get.summary', 'Custom endpoint');
     }
 }
 

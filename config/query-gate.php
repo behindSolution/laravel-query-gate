@@ -21,6 +21,8 @@ return [
         'version' => '1.0.0',
         'route' => 'query/docs',
         'json_route' => null,
+        'ui' => 'redoc',
+        'ui_options' => [],
         'servers' => [],
         'output' => [
             'format' => 'json',
@@ -36,6 +38,7 @@ return [
         ],
         'tags' => [],
         'middleware' => [],
+        'modifiers' => [],
     ],
 
     'model_aliases' => [

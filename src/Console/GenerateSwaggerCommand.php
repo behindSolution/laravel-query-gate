@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate\Console;
 
+use BehindSolution\LaravelQueryGate\OpenApi\DocumentExtender;
 use BehindSolution\LaravelQueryGate\OpenApi\OpenApiGenerator;
 use Illuminate\Console\Command;
 use JsonException;
@@ -12,7 +13,7 @@ class GenerateSwaggerCommand extends Command
 
     protected $description = 'Generate an OpenAPI document representing the current Query Gate configuration.';
 
-    public function handle(OpenApiGenerator $generator): int
+    public function handle(OpenApiGenerator $generator, DocumentExtender $extender): int
     {
         /** @var array<string, mixed>|null $config */
         $config = config('query-gate');
@@ -23,7 +24,7 @@ class GenerateSwaggerCommand extends Command
             return self::FAILURE;
         }
 
-        $document = $generator->generate($config);
+        $document = $extender->extend($generator->generate($config), $config);
 
         $format = strtolower((string) ($this->option('format') ?? $this->resolveOutputFormat($config)));
 

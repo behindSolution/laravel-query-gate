@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <title>{{ $title }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
     <style>
         html, body {
             margin: 0;
@@ -12,29 +11,44 @@
             height: 100%;
         }
 
-        #swagger-ui {
+        #documentation {
             width: 100%;
             height: 100%;
         }
     </style>
 </head>
 <body>
-    <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.min.js"></script>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
-    <script>
-        window.addEventListener('load', function () {
-            SwaggerUIBundle({
-                url: @json($jsonUrl),
-                dom_id: '#swagger-ui',
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                layout: 'BaseLayout'
+    <div id="documentation"></div>
+
+    @if(($ui ?? 'redoc') === 'swagger-ui')
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+        <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.min.js"></script>
+        <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+        <script>
+            window.addEventListener('load', function () {
+                SwaggerUIBundle(Object.assign({
+                    url: @json($jsonUrl),
+                    dom_id: '#documentation',
+                    presets: [
+                        SwaggerUIBundle.presets.apis,
+                        SwaggerUIStandalonePreset
+                    ],
+                    layout: 'BaseLayout'
+                }, @json($uiOptions ?? [])));
             });
-        });
-    </script>
+        </script>
+    @else
+        <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+        <script>
+            window.addEventListener('load', function () {
+                Redoc.init(
+                    @json($jsonUrl),
+                    Object.assign({}, @json($uiOptions ?? [])),
+                    document.getElementById('documentation')
+                );
+            });
+        </script>
+    @endif
 </body>
 </html>
 
