@@ -89,12 +89,12 @@ When you want shorter identifiers in the client, declare aliases in the configur
 
 Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
 
-### Swagger / OpenAPI
+### OpenAPI
 
-Query Gate can export an OpenAPI document representing every configured model. Adjust the `swagger` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
+Query Gate can export an OpenAPI document representing every configured model. Adjust the `openAPI` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
 
 ```php
-'swagger' => [
+'openAPI' => [
     'enabled' => true,
     'title' => 'Query Gate API',
     'description' => 'Generated documentation for Query Gate endpoints.',
@@ -126,19 +126,19 @@ Query Gate can export an OpenAPI document representing every configured model. A
 Generate (or refresh) the spec at any time with:
 
 ```bash
-php artisan qg:swagger
+php artisan qg:openapi
 ```
 
 Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinations or YAML. The generator reads every `QueryGate::make()` declaration and exposes filters, allowed operators, pagination mode, select clauses, actions, policies, cache TTLs, and alias information through `x-query-gate` metadata blocks.
 
-When `swagger.enabled` is `true`, Query Gate also registers two routes:
+When `openAPI.enabled` is `true`, Query Gate also registers two routes:
 
-- `GET /query/docs.json` (configurable via `swagger.json_route`) returns the generated document on demand.
-- `GET /query/docs` (configurable via `swagger.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `swagger.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `swagger.ui_options`. Apply custom middleware with `swagger.middleware` when the docs should be protected.
+- `GET /query/docs.json` (configurable via `openAPI.json_route`) returns the generated document on demand.
+- `GET /query/docs` (configurable via `openAPI.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `openAPI.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `openAPI.ui_options`. Apply custom middleware with `openAPI.middleware` when the docs should be protected.
 
 ### Extending the OpenAPI document
 
-Sometimes you need to document endpoints that sit outside Query Gate (e.g., a dedicated controller for duplicating a user). Use `swagger.modifiers` to register callables or classes that receive the generated document array and return a modified version:
+Sometimes you need to document endpoints that sit outside Query Gate (e.g., a dedicated controller for duplicating a user). Use `openAPI.modifiers` to register callables or classes that receive the generated document array and return a modified version:
 
 ```php
 use BehindSolution\LaravelQueryGate\Contracts\OpenApi\DocumentModifier;

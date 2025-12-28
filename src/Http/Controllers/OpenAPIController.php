@@ -8,13 +8,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
-class SwaggerController
+class OpenAPIController
 {
     public function json(OpenApiGenerator $generator, DocumentExtender $extender): JsonResponse
     {
         $config = config('query-gate');
 
-        if (!is_array($config) || empty($config['swagger']['enabled'])) {
+        if (!is_array($config) || empty($config['openAPI']['enabled'])) {
             abort(404);
         }
 
@@ -27,20 +27,20 @@ class SwaggerController
     {
         $config = config('query-gate');
 
-        if (!is_array($config) || empty($config['swagger']['enabled'])) {
+        if (!is_array($config) || empty($config['openAPI']['enabled'])) {
             abort(404);
         }
 
-        $title = is_string($config['swagger']['title'] ?? null)
-            ? $config['swagger']['title']
+        $title = is_string($config['openAPI']['title'] ?? null)
+            ? $config['openAPI']['title']
             : 'Query Gate API';
 
         $jsonUrl = route('query-gate.openAPI.json');
 
-        $ui = is_string($config['swagger']['ui'] ?? null) ? strtolower($config['swagger']['ui']) : 'redoc';
-        $uiOptions = is_array($config['swagger']['ui_options'] ?? null) ? $config['swagger']['ui_options'] : [];
+        $ui = is_string($config['openAPI']['ui'] ?? null) ? strtolower($config['openAPI']['ui']) : 'redoc';
+        $uiOptions = is_array($config['openAPI']['ui_options'] ?? null) ? $config['openAPI']['ui_options'] : [];
 
-        return response()->view('query-gate::swagger', [
+        return response()->view('query-gate::openAPI', [
             'title' => $title,
             'jsonUrl' => $jsonUrl,
             'ui' => $ui,

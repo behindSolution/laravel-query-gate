@@ -12,17 +12,17 @@ class OpenApiGenerator
      */
     public function generate(array $config): array
     {
-        $swaggerConfig = is_array($config['swagger'] ?? null) ? $config['swagger'] : [];
+        $openApiConfig = is_array($config['openAPI'] ?? null) ? $config['openAPI'] : [];
         $models = $this->resolveModels($config);
 
         $document = [
             'openapi' => '3.1.0',
-            'info' => $this->buildInfo($swaggerConfig),
-            'servers' => $this->buildServers($swaggerConfig),
-            'tags' => $this->buildTags($swaggerConfig),
-            'paths' => $this->buildPaths($config, $models, $swaggerConfig),
-            'components' => $this->buildComponents($models, $swaggerConfig),
-            'security' => $this->buildSecurityRequirement($swaggerConfig),
+            'info' => $this->buildInfo($openApiConfig),
+            'servers' => $this->buildServers($openApiConfig),
+            'tags' => $this->buildTags($openApiConfig),
+            'paths' => $this->buildPaths($config, $models, $openApiConfig),
+            'components' => $this->buildComponents($models, $openApiConfig),
+            'security' => $this->buildSecurityRequirement($openApiConfig),
             'x-query-gate' => [
                 'models' => array_values($models),
             ],
@@ -455,10 +455,10 @@ class OpenApiGenerator
     /**
      * @param array<string, mixed> $rootConfig
      * @param array<string, array<string, mixed>> $models
-     * @param array<string, mixed> $swaggerConfig
+     * @param array<string, mixed> $openApiConfig
      * @return array<string, mixed>
      */
-    protected function buildPaths(array $rootConfig, array $models, array $swaggerConfig): array
+    protected function buildPaths(array $rootConfig, array $models, array $openApiConfig): array
     {
         $prefix = $rootConfig['route']['prefix'] ?? 'query';
         $prefix = is_string($prefix) ? trim($prefix, '/') : 'query';
@@ -467,23 +467,23 @@ class OpenApiGenerator
             $basePath = '/';
         }
 
-        $tag = $this->resolvePrimaryTag($swaggerConfig);
+        $tag = $this->resolvePrimaryTag($openApiConfig);
 
         $paths = [];
         $paths[$basePath] = array_filter([
-            'get' => $this->buildIndexOperation($models, $tag, $swaggerConfig),
+            'get' => $this->buildIndexOperation($models, $tag, $openApiConfig),
             'post' => $this->hasAction($models, 'create')
-                ? $this->buildActionOperation('create', $models, $tag, $swaggerConfig)
+                ? $this->buildActionOperation('create', $models, $tag, $openApiConfig)
                 : null,
         ]);
 
         if ($this->hasAction($models, 'update') || $this->hasAction($models, 'delete')) {
             $paths[$basePath . '/{id}'] = array_filter([
                 'patch' => $this->hasAction($models, 'update')
-                    ? $this->buildActionOperation('update', $models, $tag, $swaggerConfig, true)
+                    ? $this->buildActionOperation('update', $models, $tag, $openApiConfig, true)
                     : null,
                 'delete' => $this->hasAction($models, 'delete')
-                    ? $this->buildDeleteOperation($models, $tag, $swaggerConfig)
+                    ? $this->buildDeleteOperation($models, $tag, $openApiConfig)
                     : null,
             ]);
         }
@@ -510,7 +510,7 @@ class OpenApiGenerator
      * @param array<string, array<string, mixed>> $models
      * @return array<string, mixed>
      */
-    protected function buildIndexOperation(array $models, string $tag, array $swaggerConfig): array
+    protected function buildIndexOperation(array $models, string $tag, array $openApiConfig): array
     {
         return $this->removeEmptyValues([
             'summary' => 'List resources via Query Gate',
@@ -535,7 +535,7 @@ class OpenApiGenerator
                     ],
                 ],
             ],
-            'security' => $this->buildSecurityRequirement($swaggerConfig),
+            'security' => $this->buildSecurityRequirement($openApiConfig),
             'x-query-gate-models' => array_map(function ($model) {
                 return [
                     'model' => $model['model'],
@@ -554,7 +554,7 @@ class OpenApiGenerator
         string $action,
         array $models,
         string $tag,
-        array $swaggerConfig,
+        array $openApiConfig,
         bool $withIdentifier = false
     ): array {
         return $this->removeEmptyValues([
@@ -567,7 +567,7 @@ class OpenApiGenerator
             ]),
             'requestBody' => $this->buildRequestBody($models, $action),
             'responses' => $this->buildActionResponses($action),
-            'security' => $this->buildSecurityRequirement($swaggerConfig),
+            'security' => $this->buildSecurityRequirement($openApiConfig),
         ]);
     }
 
@@ -575,7 +575,7 @@ class OpenApiGenerator
      * @param array<string, array<string, mixed>> $models
      * @return array<string, mixed>
      */
-    protected function buildDeleteOperation(array $models, string $tag, array $swaggerConfig): array
+    protected function buildDeleteOperation(array $models, string $tag, array $openApiConfig): array
     {
         return $this->removeEmptyValues([
             'summary' => 'Delete resource via Query Gate',
@@ -590,7 +590,7 @@ class OpenApiGenerator
                     'description' => 'Resource deleted successfully.',
                 ],
             ],
-            'security' => $this->buildSecurityRequirement($swaggerConfig),
+            'security' => $this->buildSecurityRequirement($openApiConfig),
         ]);
     }
 
@@ -736,10 +736,10 @@ class OpenApiGenerator
 
     /**
      * @param array<string, array<string, mixed>> $models
-     * @param array<string, mixed> $swaggerConfig
+     * @param array<string, mixed> $openApiConfig
      * @return array<string, mixed>
      */
-    protected function buildComponents(array $models, array $swaggerConfig): array
+    protected function buildComponents(array $models, array $openApiConfig): array
     {
         $schemas = [];
 
@@ -759,7 +759,7 @@ class OpenApiGenerator
             'schemas' => $schemas,
         ];
 
-        $securityScheme = $this->buildSecurityScheme($swaggerConfig);
+        $securityScheme = $this->buildSecurityScheme($openApiConfig);
 
         if ($securityScheme !== null) {
             $components['securitySchemes'] = [
@@ -1133,11 +1133,11 @@ class OpenApiGenerator
     }
 
     /**
-     * @param array<string, mixed> $swaggerConfig
+     * @param array<string, mixed> $openApiConfig
      */
-    protected function resolvePrimaryTag(array $swaggerConfig): string
+    protected function resolvePrimaryTag(array $openApiConfig): string
     {
-        $tags = $this->buildTags($swaggerConfig);
+        $tags = $this->buildTags($openApiConfig);
 
         if ($tags === []) {
             return 'Query Gate';

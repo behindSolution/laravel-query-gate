@@ -2,9 +2,9 @@
 
 namespace BehindSolution\LaravelQueryGate;
 
-use BehindSolution\LaravelQueryGate\Console\GenerateSwaggerCommand;
+use BehindSolution\LaravelQueryGate\Console\OpenAPICommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
-use BehindSolution\LaravelQueryGate\Http\Controllers\SwaggerController;
+use BehindSolution\LaravelQueryGate\Http\Controllers\OpenAPIController;
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -26,7 +26,7 @@ class QueryGateServiceProvider extends ServiceProvider
         $this->registerPublishing();
         $this->registerMiddlewareAlias();
         $this->registerRoute();
-        $this->registerSwaggerRoutes();
+        $this->registerOpenApiRoutes();
         $this->registerCommands();
     }
 
@@ -75,11 +75,11 @@ class QueryGateServiceProvider extends ServiceProvider
         ], 'query-gate-config');
 
         $this->publishes([
-            __DIR__ . '/../resources/views/swagger.blade.php' => resource_path('views/vendor/query-gate/swagger.blade.php'),
+            __DIR__ . '/../resources/views/openAPI.blade.php' => resource_path('views/vendor/query-gate/openAPI.blade.php'),
         ], 'query-gate-views');
     }
 
-    protected function registerSwaggerRoutes(): void
+    protected function registerOpenApiRoutes(): void
     {
         $config = config('query-gate.openAPI');
 
@@ -96,10 +96,10 @@ class QueryGateServiceProvider extends ServiceProvider
 
         Route::middleware($middleware)
             ->group(function () use ($uiPath, $jsonPath) {
-                Route::get($jsonPath, [SwaggerController::class, 'json'])
+                Route::get($jsonPath, [OpenAPIController::class, 'json'])
                     ->name('query-gate.openAPI.json');
 
-                Route::get($uiPath, [SwaggerController::class, 'ui'])
+                Route::get($uiPath, [OpenAPIController::class, 'ui'])
                     ->name('query-gate.openAPI.ui');
             });
     }
@@ -128,7 +128,7 @@ class QueryGateServiceProvider extends ServiceProvider
         }
 
         $this->commands([
-            GenerateSwaggerCommand::class,
+            OpenAPICommand::class,
         ]);
     }
 }

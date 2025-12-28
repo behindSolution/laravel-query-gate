@@ -22,7 +22,8 @@ class DocumentExtender
      */
     public function extend(array $document, array $config): array
     {
-        $modifiers = $config['swagger']['modifiers'] ?? [];
+        $root = is_array($config['openAPI'] ?? null) ? $config['openAPI'] : [];
+        $modifiers = $root['modifiers'] ?? [];
 
         if (!is_array($modifiers) || $modifiers === []) {
             return $document;

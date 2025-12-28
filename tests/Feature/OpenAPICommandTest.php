@@ -7,7 +7,7 @@ use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\AddCustomPathDocumentModifier;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 
-class SwaggerCommandTest extends TestCase
+class OpenAPICommandTest extends TestCase
 {
     public function testGeneratesOpenApiDocument(): void
     {
@@ -43,7 +43,7 @@ class SwaggerCommandTest extends TestCase
         config()->set('query-gate.openAPI.title', 'Test Query Gate');
         config()->set('query-gate.openAPI.output.path', $outputPath);
 
-        $this->artisan('qg:swagger', ['--output' => $outputPath])
+        $this->artisan('qg:openapi', ['--output' => $outputPath])
             ->assertExitCode(0);
 
         $this->assertFileExists($outputPath);
@@ -100,7 +100,7 @@ class SwaggerCommandTest extends TestCase
             AddCustomPathDocumentModifier::class,
         ]);
 
-        $this->artisan('qg:swagger', ['--output' => $outputPath])
+        $this->artisan('qg:openapi', ['--output' => $outputPath])
             ->assertExitCode(0);
 
         $document = json_decode((string) file_get_contents($outputPath), true);

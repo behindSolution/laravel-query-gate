@@ -6,9 +6,9 @@ use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 
-class SwaggerRouteTest extends TestCase
+class OpenAPIRouteTest extends TestCase
 {
-    public function testSwaggerJsonRouteReturnsDocument(): void
+    public function testOpenApiJsonRouteReturnsDocument(): void
     {
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.models.' . Post::class, QueryGate::make());
@@ -21,7 +21,7 @@ class SwaggerRouteTest extends TestCase
         ]);
     }
 
-    public function testSwaggerUiRouteRendersHtml(): void
+    public function testOpenApiUiRouteRendersHtml(): void
     {
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.openAPI.title', 'Docs UI');
@@ -35,7 +35,7 @@ class SwaggerRouteTest extends TestCase
         $response->assertSee('Docs UI', false);
     }
 
-    public function testSwaggerJsonRouteAppliesDocumentModifiers(): void
+    public function testOpenApiJsonRouteAppliesDocumentModifiers(): void
     {
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.openAPI.modifiers', [

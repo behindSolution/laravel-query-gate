@@ -7,9 +7,9 @@ use BehindSolution\LaravelQueryGate\OpenApi\OpenApiGenerator;
 use Illuminate\Console\Command;
 use JsonException;
 
-class GenerateSwaggerCommand extends Command
+class OpenAPICommand extends Command
 {
-    protected $signature = 'qg:swagger {--output=} {--format=}';
+    protected $signature = 'qg:openapi {--output=} {--format=}';
 
     protected $description = 'Generate an OpenAPI document representing the current Query Gate configuration.';
 
@@ -80,7 +80,7 @@ class GenerateSwaggerCommand extends Command
      */
     protected function resolveOutputPath(array $config): string
     {
-        $path = $config['swagger']['output']['path'] ?? storage_path('app/query-gate-openapi.json');
+        $path = $config['openAPI']['output']['path'] ?? storage_path('app/query-gate-openapi.json');
 
         return is_string($path) && $path !== ''
             ? $path
@@ -92,7 +92,7 @@ class GenerateSwaggerCommand extends Command
      */
     protected function resolveOutputFormat(array $config): string
     {
-        $format = $config['swagger']['output']['format'] ?? 'json';
+        $format = $config['openAPI']['output']['format'] ?? 'json';
 
         return is_string($format) ? strtolower($format) : 'json';
     }

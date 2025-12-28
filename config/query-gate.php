@@ -14,7 +14,7 @@ return [
         'max_per_page' => 100,
     ],
 
-    'swagger' => [
+    'openAPI' => [
         'enabled' => false,
         'title' => 'Query Gate API',
         'description' => 'Generated documentation for Query Gate endpoints.',
