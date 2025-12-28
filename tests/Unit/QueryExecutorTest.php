@@ -319,5 +319,38 @@ class QueryExecutorTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertSame('Alpha', $items[0]->title);
     }
+
+    public function testExecuteSupportsNotInOperator(): void
+    {
+        Post::query()->create(['title' => 'Alpha', 'status' => 'active']);
+        Post::query()->create(['title' => 'Beta', 'status' => 'archived']);
+        Post::query()->create(['title' => 'Gamma', 'status' => 'draft']);
+
+        $request = Request::create('/query', 'GET', [
+            'filter' => [
+                'status' => [
+                    'not_in' => 'archived,draft',
+                ],
+            ],
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'filters' => [
+                'status' => 'string',
+            ],
+            'filter_operators' => [
+                'status' => ['not_in'],
+            ],
+        ]);
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+        $items = $result->items();
+        $this->assertCount(1, $items);
+        $this->assertSame('active', $items[0]->status);
+    }
 }
 

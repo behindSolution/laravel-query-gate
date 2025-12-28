@@ -121,6 +121,12 @@ class AppliesFilters
                     $query->whereIn($qualifiedField, $values);
                 }
                 break;
+            case 'not_in':
+                $values = is_array($value) ? array_values(array_filter($value, static fn ($item) => $item !== null)) : [];
+                if (!empty($values)) {
+                    $query->whereNotIn($qualifiedField, $values);
+                }
+                break;
             case 'between':
                 if (is_array($value) && count($value) === 2) {
                     $query->whereBetween($qualifiedField, $value);
