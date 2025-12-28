@@ -14,6 +14,11 @@ return [
         'max_per_page' => 100,
     ],
 
+    'model_aliases' => [
+        'users' => App\Models\User::class,
+        'posts' => App\Models\Post::class,
+    ],
+
     'models' => [
         // App\Models\User::class => QueryGate::make()
         //     ->cache(60)
