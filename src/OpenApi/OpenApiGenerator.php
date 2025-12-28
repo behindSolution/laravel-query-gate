@@ -568,7 +568,7 @@ class OpenApiGenerator
         ];
 
         return array_filter([
-            'parameters' => $pathParameters,
+            'parameters' => array_values(array_filter($pathParameters, static fn ($value) => $value !== null)),
             'get' => $this->buildModelIndexOperation($model, $tag, $openApiConfig),
             'post' => $this->modelHasAction($model, 'create')
                 ? $this->buildModelActionOperation('create', $model, $tag, $openApiConfig)
@@ -588,7 +588,7 @@ class OpenApiGenerator
         ];
 
         return array_filter([
-            'parameters' => $pathParameters,
+            'parameters' => array_values(array_filter($pathParameters, static fn ($value) => $value !== null)),
             'patch' => $this->modelHasAction($model, 'update')
                 ? $this->buildModelActionOperation('update', $model, $tag, $openApiConfig)
                 : null,
@@ -614,7 +614,7 @@ class OpenApiGenerator
             'summary' => 'List ' . $plural,
             'description' => 'Returns ' . strtolower($plural) . ' applying Query Gate filters, sorting, selection, and pagination rules.',
             'tags' => [$tag],
-            'parameters' => $parameters,
+            'parameters' => array_values($parameters),
             'responses' => [
                 '200' => [
                     'description' => 'Successful response.',
