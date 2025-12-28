@@ -9,11 +9,6 @@ use Illuminate\Support\Str;
 class OpenApiGenerator
 {
     /**
-     * @var array<string, mixed>
-     */
-    protected array $rawModelConfigs = [];
-
-    /**
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
@@ -42,9 +37,7 @@ class OpenApiGenerator
     protected function resolveModels(array $config): array
     {
         $definitions = [];
-        $aliases = $this->invertAliases($config['model_aliases'] ?? []);
         $models = $config['models'] ?? [];
-        $this->rawModelConfigs = is_array($models) ? $models : [];
 
         if (!is_array($models)) {
             return [];
@@ -55,6 +48,8 @@ class OpenApiGenerator
                 continue;
             }
 
+            $alias = null;
+
             if ($definition instanceof QueryGate) {
                 $definition = $definition->toArray();
             }
@@ -63,12 +58,18 @@ class OpenApiGenerator
                 $definition = [];
             }
 
+            if (isset($definition['alias']) && is_string($definition['alias']) && $definition['alias'] !== '') {
+                $alias = $definition['alias'];
+                unset($definition['alias']);
+            }
+
             $component = $this->buildComponentName($modelClass);
 
             $definitions[$modelClass] = array_merge(
                 [
                     'model' => $modelClass,
-                    'aliases' => $aliases[$modelClass] ?? [],
+                    'alias' => $alias,
+                    'aliases' => $alias !== null ? [$alias] : [],
                     'component' => $component,
                     'definition' => '#/components/schemas/' . $component . 'Definition',
                 ],
@@ -1367,33 +1368,6 @@ class OpenApiGenerator
         }
 
         return in_array($rule, $rules, true);
-    }
-
-    /**
-     * @param array<string, string> $aliases
-     * @return array<string, array<int, string>>
-     */
-    protected function invertAliases($aliases): array
-    {
-        $normalized = [];
-
-        if (!is_array($aliases)) {
-            return $normalized;
-        }
-
-        foreach ($aliases as $alias => $class) {
-            if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                continue;
-            }
-
-            $normalized[$class][] = $alias;
-        }
-
-        foreach ($normalized as $class => $list) {
-            $normalized[$class] = array_values(array_unique($list));
-        }
-
-        return $normalized;
     }
 
     protected function buildComponentName(string $modelClass): string

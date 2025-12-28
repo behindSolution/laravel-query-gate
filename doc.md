@@ -41,6 +41,7 @@ return [
 
     'models' => [
         App\Models\User::class => QueryGate::make()
+            ->alias('users')
             ->cache(60, 'users-index')
             ->filters([
                 'created_at' => 'date',
@@ -76,6 +77,7 @@ Each model entry can:
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 - Call `->sorts([...])` to whitelist which columns can be used for sorting (matching the syntax accepted by the `sort` query parameter).
+- Call `->alias('users')` to expose pretty REST-like routes (e.g. `/query/users`, `/query/users/{id}`) in addition to the canonical query-string endpoint.
 
 ### Model Aliases
 

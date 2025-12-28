@@ -26,11 +26,7 @@ class ResolveModelMiddlewareTest extends TestCase
 
     public function testResolvesModelFromRouteParameter(): void
     {
-        config()->set('query-gate.model_aliases', [
-            'posts' => Post::class,
-        ]);
-
-        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()->alias('posts'));
 
         $middleware = app(ResolveModelMiddleware::class);
 
@@ -111,6 +107,7 @@ class ResolveModelMiddlewareTest extends TestCase
     public function testPopulatesRequestAttributesWhenModelIsExposed(): void
     {
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
             ->actions(fn ($actions) => $actions->delete())
         );
 
@@ -135,11 +132,7 @@ class ResolveModelMiddlewareTest extends TestCase
 
     public function testResolvesModelAlias(): void
     {
-        config()->set('query-gate.model_aliases', [
-            'posts' => Post::class,
-        ]);
-
-        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()->alias('posts'));
 
         $middleware = app(ResolveModelMiddleware::class);
         $request = Request::create('/query', 'GET', [

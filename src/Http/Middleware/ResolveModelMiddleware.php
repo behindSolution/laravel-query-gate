@@ -48,12 +48,13 @@ class ResolveModelMiddleware
     {
         $identifier = $this->resolveRawModelIdentifier($request);
 
-        $aliases = config('query-gate.model_aliases', []);
+        [$aliases, $slugs] = $this->aliasIndexes();
 
-        $model = $this->resolveAlias($identifier, $aliases);
+        $model = $aliases[strtolower($identifier)] ?? $identifier;
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
-            $model = $this->resolveSluggedModel($identifier, $aliases);
+            $slug = strtolower(Str::slug($identifier, '-'));
+            $model = $slugs[$slug] ?? $model;
         }
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
@@ -78,70 +79,6 @@ class ResolveModelMiddleware
         }
 
         return trim($model);
-    }
-
-    /**
-     * @param array<string, string> $aliases
-     */
-    protected function resolveAlias(string $identifier, $aliases): string
-    {
-        if (!is_array($aliases) || $aliases === []) {
-            return $identifier;
-        }
-
-        $normalizedAliases = [];
-
-        foreach ($aliases as $alias => $class) {
-            if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                continue;
-            }
-
-            $normalizedAliases[strtolower($alias)] = $class;
-        }
-
-        $aliasMatch = $normalizedAliases[strtolower($identifier)] ?? null;
-
-        if (is_string($aliasMatch) && $aliasMatch !== '') {
-            return $aliasMatch;
-        }
-
-        return $identifier;
-    }
-
-    /**
-     * @param array<string, string> $aliases
-     */
-    protected function resolveSluggedModel(string $identifier, $aliases): string
-    {
-        $target = strtolower($identifier);
-
-        $models = config('query-gate.models', []);
-
-        if (is_array($models)) {
-            foreach ($models as $class => $definition) {
-                if (!is_string($class) || $class === '') {
-                    continue;
-                }
-
-                if (strtolower(Str::slug($class, '-')) === $target) {
-                    return $class;
-                }
-            }
-        }
-
-        if (is_array($aliases)) {
-            foreach ($aliases as $alias => $class) {
-                if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                    continue;
-                }
-
-                if (strtolower(Str::slug($alias, '-')) === $target) {
-                    return $class;
-                }
-            }
-        }
-
-        return $identifier;
     }
 
     /**
@@ -192,6 +129,46 @@ class ResolveModelMiddleware
         }
 
         return $resolved;
+    }
+
+    /**
+     * @return array{0: array<string, string>, 1: array<string, string>}
+     */
+    protected function aliasIndexes(): array
+    {
+        $models = config('query-gate.models', []);
+
+        $aliases = [];
+        $slugs = [];
+
+        if (!is_array($models)) {
+            return [$aliases, $slugs];
+        }
+
+        foreach ($models as $class => $definition) {
+            if (!is_string($class) || $class === '') {
+                continue;
+            }
+
+            if ($definition instanceof QueryGate) {
+                $definition = $definition->toArray();
+            }
+
+            if (!is_array($definition)) {
+                $definition = [];
+            }
+
+            $alias = $definition['alias'] ?? null;
+
+            if (is_string($alias) && $alias !== '') {
+                $aliases[strtolower($alias)] = $class;
+                $slugs[strtolower(Str::slug($alias, '-'))] = $class;
+            }
+
+            $slugs[strtolower(Str::slug($class, '-'))] = $class;
+        }
+
+        return [$aliases, $slugs];
     }
 }
 
