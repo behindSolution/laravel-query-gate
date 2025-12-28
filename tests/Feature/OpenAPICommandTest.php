@@ -68,36 +68,47 @@ class OpenAPICommandTest extends TestCase
         $this->assertArrayHasKey('get', $document['paths']['/query/posts']);
         $this->assertSame('List Posts', $document['paths']['/query/posts']['get']['summary']);
         $this->assertArrayHasKey('/query/posts/{id}', $document['paths']);
-        $this->assertArrayHasKey('x-query-gate', $document);
-        $this->assertArrayHasKey('models', $document['x-query-gate']);
-        $this->assertNotEmpty($document['x-query-gate']['models']);
-
-        $modelMeta = null;
-
-        foreach ($document['x-query-gate']['models'] as $item) {
-            if (($item['model'] ?? null) === Post::class) {
-                $modelMeta = $item;
+        $definitionSchema = null;
+        foreach ($document['components']['schemas'] as $name => $schema) {
+            if (str_ends_with($name, 'Definition')) {
+                $definitionSchema = $schema;
                 break;
             }
         }
-
-        $this->assertNotNull($modelMeta);
-        $this->assertContains('posts', $modelMeta['aliases']);
-
-        $component = $modelMeta['component'] ?? null;
-        $this->assertIsString($component);
-
-        $definitionRef = $modelMeta['definition'] ?? null;
-        $this->assertIsString($definitionRef);
-        $this->assertSame('#/components/schemas/' . $component . 'Definition', $definitionRef);
-
-        $this->assertArrayHasKey($component . 'Definition', $document['components']['schemas']);
-        $this->assertArrayHasKey($component . 'CreateRequest', $document['components']['schemas']);
+        $this->assertNotNull($definitionSchema);
+        $this->assertArrayHasKey('select', $definitionSchema['properties']);
+        $this->assertArrayHasKey('sorts', $definitionSchema['properties']);
 
         $operation = $document['paths']['/query/posts']['get'];
-        $this->assertSame(['title', 'created_at'], $operation['x-query-gate']['sorts']);
-        $this->assertArrayHasKey('filters', $operation['x-query-gate']);
-        $this->assertArrayHasKey('select', $operation['x-query-gate']);
+
+        $filterParam = null;
+        foreach ($operation['parameters'] as $parameter) {
+            if (($parameter['name'] ?? null) === 'filter') {
+                $filterParam = $parameter;
+                break;
+            }
+        }
+        $this->assertNotNull($filterParam);
+        $this->assertArrayHasKey('schema', $filterParam);
+        $this->assertArrayHasKey('title', $filterParam['schema']['properties']);
+        $this->assertArrayHasKey('like', $filterParam['schema']['properties']['title']['properties']);
+
+        $example = $operation['responses']['200']['content']['application/json']['example'];
+        $this->assertSame('undefined', $example['data'][0]['created_at']);
+        $this->assertTrue(isset($example['data'][0]['posts'][0]['title']));
+
+        $createOperation = $document['paths']['/query/posts']['post'];
+        $this->assertSame('undefined', $createOperation['responses']['201']['content']['application/json']['example']['created_at'] ?? 'undefined');
+
+        $createRequestSchema = null;
+        foreach ($document['components']['schemas'] as $name => $schema) {
+            if (str_ends_with($name, 'CreateRequest')) {
+                $createRequestSchema = $schema;
+                break;
+            }
+        }
+        $this->assertNotNull($createRequestSchema);
+        $this->assertArrayHasKey('example', $createRequestSchema);
 
         @unlink($outputPath);
     }

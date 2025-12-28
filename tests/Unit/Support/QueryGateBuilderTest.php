@@ -20,6 +20,7 @@ class QueryGateBuilderTest extends TestCase
                 'posts.title' => ['like'],
             ])
             ->select(['created_at', 'posts.title'])
+            ->sorts(['created_at'])
             ->rawFilters([
                 'posts.title' => fn ($builder, $operator, $value, $column) => null,
             ])
@@ -86,6 +87,8 @@ class QueryGateBuilderTest extends TestCase
             ],
             $configuration['filter_operators']
         );
+
+        $this->assertSame(['created_at'], $configuration['sorts']);
     }
 
     public function testStoresPaginationMode(): void
