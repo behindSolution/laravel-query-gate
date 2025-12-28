@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate;
 
+use BehindSolution\LaravelQueryGate\Console\GenerateSwaggerCommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,7 @@ class QueryGateServiceProvider extends ServiceProvider
         $this->registerPublishing();
         $this->registerMiddlewareAlias();
         $this->registerRoute();
+        $this->registerCommands();
     }
 
     protected function registerMiddlewareAlias(): void
@@ -67,6 +69,17 @@ class QueryGateServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/query-gate.php' => config_path('query-gate.php'),
         ], 'query-gate-config');
+    }
+
+    protected function registerCommands(): void
+    {
+        if (!$this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands([
+            GenerateSwaggerCommand::class,
+        ]);
     }
 }
 

@@ -89,6 +89,40 @@ When you want shorter identifiers in the client, declare aliases in the configur
 
 Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
 
+### Swagger / OpenAPI
+
+Query Gate can export an OpenAPI document representing every configured model. Adjust the `swagger` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
+
+```php
+'swagger' => [
+    'enabled' => true,
+    'title' => 'Query Gate API',
+    'description' => 'Generated documentation for Query Gate endpoints.',
+    'version' => '1.2.0',
+    'route' => '/docs/query-gate', // optional UI route handled by the host
+    'servers' => [
+        ['url' => 'https://api.example.com', 'description' => 'Production'],
+    ],
+    'output' => [
+        'format' => 'json',
+        'path' => storage_path('app/query-gate-openapi.json'),
+    ],
+    'auth' => [
+        'type' => 'http',
+        'scheme' => 'bearer',
+        'bearer_format' => 'JWT',
+    ],
+],
+```
+
+Generate (or refresh) the spec at any time with:
+
+```bash
+php artisan qg:swagger
+```
+
+Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinations or YAML. The generator reads every `QueryGate::make()` declaration and exposes filters, allowed operators, pagination mode, select clauses, actions, policies, cache TTLs, and alias information through `x-query-gate` metadata blocks.
+
 ## Making Requests
 
 All requests are handled by the registered route (default `GET /query`). Provide either the fully-qualified model name or one of the configured aliases:
