@@ -134,7 +134,7 @@ Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinat
 When `openAPI.enabled` is `true`, Query Gate also registers two routes:
 
 - `GET /query/docs.json` (configurable via `openAPI.json_route`) returns the generated document on demand.
-- `GET /query/docs` (configurable via `openAPI.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `openAPI.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `openAPI.ui_options`. Apply custom middleware with `openAPI.middleware` when the docs should be protected.
+- `GET /query/docs` (configurable via `openAPI.route`) serves a documentation UI. The default renderer is [ReDoc](https://redoc.ly/), but you can switch to Swagger UI by setting `openAPI.ui = 'swagger-ui'`. Any UI-specific tweaks (e.g., hiding download buttons) can be provided through `openAPI.ui_options`. Apply custom middleware with `openAPI.middleware` when the docs should be protected. The rendered Blade embeds the spec payload directly, evitando uma segunda requisição HTTP e facilitando o cache da view.
 
 ### Extending the OpenAPI document
 

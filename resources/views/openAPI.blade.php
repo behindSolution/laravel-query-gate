@@ -20,14 +20,19 @@
 <body>
     <div id="documentation"></div>
 
+    @php
+        $spec = $document ?? [];
+    @endphp
+
     @if(($ui ?? 'redoc') === 'swagger-ui')
         <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
         <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.min.js"></script>
         <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
         <script>
             window.addEventListener('load', function () {
+                const spec = @json($spec);
                 SwaggerUIBundle(Object.assign({
-                    url: @json($jsonUrl),
+                    spec: spec,
                     dom_id: '#documentation',
                     presets: [
                         SwaggerUIBundle.presets.apis,
@@ -41,8 +46,9 @@
         <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
         <script>
             window.addEventListener('load', function () {
+                const spec = @json($spec);
                 Redoc.init(
-                    @json($jsonUrl),
+                    spec,
                     Object.assign({}, @json($uiOptions ?? [])),
                     document.getElementById('documentation')
                 );

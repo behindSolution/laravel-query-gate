@@ -23,7 +23,7 @@ class OpenAPIController
         return response()->json($document);
     }
 
-    public function ui(Request $request): Response
+    public function ui(Request $request, OpenApiGenerator $generator, DocumentExtender $extender): Response
     {
         $config = config('query-gate');
 
@@ -35,16 +35,16 @@ class OpenAPIController
             ? $config['openAPI']['title']
             : 'Query Gate API';
 
-        $jsonUrl = route('query-gate.openAPI.json');
-
         $ui = is_string($config['openAPI']['ui'] ?? null) ? strtolower($config['openAPI']['ui']) : 'redoc';
         $uiOptions = is_array($config['openAPI']['ui_options'] ?? null) ? $config['openAPI']['ui_options'] : [];
 
+        $document = $extender->extend($generator->generate($config), $config);
+
         return response()->view('query-gate::openAPI', [
             'title' => $title,
-            'jsonUrl' => $jsonUrl,
             'ui' => $ui,
             'uiOptions' => $uiOptions,
+            'document' => $document,
         ]);
     }
 }
