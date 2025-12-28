@@ -18,6 +18,7 @@ class QueryGate implements Arrayable
     protected ?ActionsBuilder $actions = null;
 
     protected ?string $paginationMode = null;
+    protected ?string $alias = null;
 
     /**
      * @var array{ttl: int, name: string|null}|null
@@ -196,6 +197,19 @@ class QueryGate implements Arrayable
         return $this;
     }
 
+    public function alias(string $alias): self
+    {
+        $alias = trim($alias);
+
+        if ($alias === '') {
+            throw new InvalidArgumentException('Alias must be a non-empty string.');
+        }
+
+        $this->alias = $alias;
+
+        return $this;
+    }
+
     /**
      * @param array<string, callable> $callbacks
      */
@@ -246,6 +260,10 @@ class QueryGate implements Arrayable
 
         if ($this->cache !== null) {
             $configuration['cache'] = $this->cache;
+        }
+
+        if ($this->alias !== null) {
+            $configuration['alias'] = $this->alias;
         }
 
         if ($this->filters !== []) {

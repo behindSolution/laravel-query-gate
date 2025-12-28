@@ -9,6 +9,11 @@ use Illuminate\Support\Str;
 class OpenApiGenerator
 {
     /**
+     * @var array<string, mixed>
+     */
+    protected array $rawModelConfigs = [];
+
+    /**
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
@@ -39,6 +44,7 @@ class OpenApiGenerator
         $definitions = [];
         $aliases = $this->invertAliases($config['model_aliases'] ?? []);
         $models = $config['models'] ?? [];
+        $this->rawModelConfigs = is_array($models) ? $models : [];
 
         if (!is_array($models)) {
             return [];
@@ -488,10 +494,13 @@ class OpenApiGenerator
 
         $paths = [];
 
-        foreach ($models as $model) {
+        foreach ($models as $modelClass => $model) {
             $tag = $this->resolveModelTagName($model);
 
-            foreach ($this->resolvePathIdentifiers($model) as $slug => $identifier) {
+            $identifiers = $this->resolvePathIdentifiers($model);
+            $tag = $this->resolveModelTagName($model);
+
+            foreach ($identifiers as $slug => $identifier) {
                 $listPath = $this->composePath($basePath, $slug);
 
                 if (!isset($paths[$listPath])) {
