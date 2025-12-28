@@ -25,8 +25,8 @@ class QueryGateServiceProvider extends ServiceProvider
 
         $this->registerPublishing();
         $this->registerMiddlewareAlias();
-        $this->registerRoute();
         $this->registerOpenApiRoutes();
+        $this->registerRoute();
         $this->registerCommands();
     }
 
@@ -55,6 +55,22 @@ class QueryGateServiceProvider extends ServiceProvider
 
                 Route::post('/', [QueryGateController::class, 'store'])
                     ->name('query-gate.store');
+
+                Route::get('{model}', [QueryGateController::class, 'index'])
+                    ->where('model', '[^/]+')
+                    ->name('query-gate.model.index');
+
+                Route::post('{model}', [QueryGateController::class, 'store'])
+                    ->where('model', '[^/]+')
+                    ->name('query-gate.model.store');
+
+                Route::patch('{model}/{id}', [QueryGateController::class, 'update'])
+                    ->where('model', '[^/]+')
+                    ->name('query-gate.model.update');
+
+                Route::delete('{model}/{id}', [QueryGateController::class, 'destroy'])
+                    ->where('model', '[^/]+')
+                    ->name('query-gate.model.destroy');
 
                 Route::patch('/{id}', [QueryGateController::class, 'update'])
                     ->name('query-gate.update');

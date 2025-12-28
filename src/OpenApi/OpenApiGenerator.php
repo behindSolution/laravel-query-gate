@@ -524,12 +524,12 @@ class OpenApiGenerator
                 $slug = $this->slugifyPathSegment($alias);
                 $map[$slug] = $alias;
             }
+
+            return $map !== [] ? $map : [$this->slugifyPathSegment($model['model']) => $model['model']];
         }
 
         $classSlug = $this->slugifyPathSegment($model['model']);
-        $map[$classSlug] = $model['model'];
-
-        return $map;
+        return [$classSlug => $model['model']];
     }
 
     protected function slugifyPathSegment(string $value): string
@@ -688,7 +688,7 @@ class OpenApiGenerator
 
         return [
             'name' => 'model',
-            'in' => 'query',
+            'in' => 'path',
             'required' => true,
             'description' => 'Fixed model identifier for this endpoint.',
             'schema' => array_filter([

@@ -68,18 +68,16 @@ class OpenAPICommandTest extends TestCase
         $this->assertArrayHasKey('get', $document['paths']['/query/posts']);
         $this->assertSame('List Posts', $document['paths']['/query/posts']['get']['summary']);
         $this->assertArrayHasKey('/query/posts/{id}', $document['paths']);
-        $definitionSchema = null;
-        foreach ($document['components']['schemas'] as $name => $schema) {
-            if (str_ends_with($name, 'Definition')) {
-                $definitionSchema = $schema;
-                break;
-            }
-        }
+        $pathInfo = $document['paths']['/query/posts'];
+        $this->assertSame('path', $pathInfo['parameters'][0]['in']);
+        $this->assertSame('posts', $pathInfo['parameters'][0]['example']);
+
+        $definitionSchema = $document['components']['schemas']['QueryGateBehindSolutionLaravelQueryGateTestsFixturesPostDefinition'] ?? null;
         $this->assertNotNull($definitionSchema);
         $this->assertArrayHasKey('select', $definitionSchema['properties']);
         $this->assertArrayHasKey('sorts', $definitionSchema['properties']);
 
-        $operation = $document['paths']['/query/posts']['get'];
+        $operation = $pathInfo['get'];
 
         $filterParam = null;
         foreach ($operation['parameters'] as $parameter) {

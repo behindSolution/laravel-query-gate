@@ -61,6 +61,7 @@ return [
         //         'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
         //     ])
         //     ->select(['created_at', 'posts.title'])
+//     ->sorts(['created_at'])
         //     ->query(fn ($query, $request) => $query->where('active', true))
         //     ->middleware(['auth:sanctum'])
         //     ->paginationMode('cursor')
