@@ -27,6 +27,7 @@ class OpenAPICommandTest extends TestCase
             ->allowedFilters([
                 'title' => ['eq', 'like'],
             ])
+            ->select(['created_at', 'posts.title'])
             ->actions(fn ($actions) => $actions
                 ->create(fn ($action) => $action->validations([
                     'title' => ['required', 'string'],
@@ -37,7 +38,14 @@ class OpenAPICommandTest extends TestCase
                 ]))
                 ->delete()
             )
+            ->sorts(['title', 'created_at'])
         );
+
+        $rawDefinition = config('query-gate.models.' . Post::class);
+        $this->assertInstanceOf(QueryGate::class, $rawDefinition);
+        $definitionArray = $rawDefinition->toArray();
+        $this->assertArrayHasKey('select', $definitionArray);
+        $this->assertSame(['created_at', 'posts.title'], $definitionArray['select']);
 
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.openAPI.title', 'Test Query Gate');
@@ -85,6 +93,11 @@ class OpenAPICommandTest extends TestCase
 
         $this->assertArrayHasKey($component . 'Definition', $document['components']['schemas']);
         $this->assertArrayHasKey($component . 'CreateRequest', $document['components']['schemas']);
+
+        $operation = $document['paths']['/query/posts']['get'];
+        $this->assertSame(['title', 'created_at'], $operation['x-query-gate']['sorts']);
+        $this->assertArrayHasKey('filters', $operation['x-query-gate']);
+        $this->assertArrayHasKey('select', $operation['x-query-gate']);
 
         @unlink($outputPath);
     }

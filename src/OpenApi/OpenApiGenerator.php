@@ -92,6 +92,7 @@ class OpenApiGenerator
             'cache' => $this->sanitizeCache($definition['cache'] ?? null),
             'filters' => $this->mergeFilterMetadata($filters, $operators, $rawFilters),
             'select' => $this->normalizeStringArray($definition['select'] ?? []),
+            'sorts' => $this->normalizeStringArray($definition['sorts'] ?? []),
             'actions' => $this->sanitizeActions($definition['actions'] ?? []),
         ];
     }
@@ -554,11 +555,11 @@ class OpenApiGenerator
             'summary' => 'List ' . $plural,
             'description' => 'Returns ' . strtolower($plural) . ' applying Query Gate filters, sorting, selection, and pagination rules.',
             'tags' => [$tag],
-            'parameters' => [
+            'parameters' => array_filter([
                 $this->buildFilterParameter(),
-                $this->buildSortParameter(),
+                $this->buildSortParameter($model['sorts']),
                 $this->buildCursorParameter(),
-            ],
+            ]),
             'responses' => [
                 '200' => [
                     'description' => 'Successful response.',
@@ -578,6 +579,9 @@ class OpenApiGenerator
                 'aliases' => $model['aliases'],
                 'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
                 'original_path' => $originalPath,
+                'filters' => $model['filters'],
+                'select' => $model['select'],
+                'sorts' => $model['sorts'],
             ],
         ]);
     }
@@ -605,6 +609,9 @@ class OpenApiGenerator
                 'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
                 'original_path' => $originalPath,
                 'requires_identifier' => $withIdentifier,
+                'filters' => $model['filters'],
+                'select' => $model['select'],
+                'sorts' => $model['sorts'],
             ],
         ]);
     }
@@ -629,6 +636,9 @@ class OpenApiGenerator
                 'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
                 'original_path' => $originalPath,
                 'requires_identifier' => true,
+                'filters' => $model['filters'],
+                'select' => $model['select'],
+                'sorts' => $model['sorts'],
             ],
         ]);
     }
@@ -731,17 +741,24 @@ class OpenApiGenerator
         ];
     }
 
-    protected function buildSortParameter(): array
+    protected function buildSortParameter(array $allowedSorts = []): array
     {
-        return [
+        $description = 'Comma-separated sort instructions (e.g. created_at:desc,id:asc).';
+
+        if ($allowedSorts !== []) {
+            $description .= ' Allowed fields: ' . implode(', ', $allowedSorts) . '.';
+        }
+
+        return array_filter([
             'name' => 'sort',
             'in' => 'query',
             'required' => false,
-            'description' => 'Comma-separated sort instructions (e.g. created_at:desc,id:asc).',
+            'description' => $description,
             'schema' => [
                 'type' => 'string',
             ],
-        ];
+            'x-allowed-sorts' => $allowedSorts !== [] ? $allowedSorts : null,
+        ], static fn ($value) => $value !== null);
     }
 
     protected function buildCursorParameter(): array
@@ -963,6 +980,10 @@ class OpenApiGenerator
                     'type' => 'array',
                     'items' => ['type' => 'string'],
                 ],
+                'sorts' => $model['sorts'] !== [] ? [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                ] : null,
                 'filters' => $filterProperties !== [] ? [
                     'type' => 'object',
                     'properties' => $filterProperties,
@@ -980,6 +1001,7 @@ class OpenApiGenerator
                 'cache' => $model['cache'],
                 'filters' => $model['filters'],
                 'select' => $model['select'],
+                'sorts' => $model['sorts'],
                 'actions' => $model['actions'],
             ],
         ]);

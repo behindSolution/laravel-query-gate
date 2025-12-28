@@ -54,7 +54,7 @@ class QueryExecutor
         );
 
         $this->applyFilters($context, $configuration);
-        $this->applySorting($context);
+        $this->applySorting($context, $configuration);
 
         $result = $this->applyPagination($context, $configuration);
 

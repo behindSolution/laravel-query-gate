@@ -5,6 +5,7 @@ namespace BehindSolution\LaravelQueryGate\Traits;
 use BehindSolution\LaravelQueryGate\Concerns\AppliesSorting;
 use BehindSolution\LaravelQueryGate\Query\QueryContext;
 use BehindSolution\LaravelQueryGate\Support\SortParser;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 trait HasSorting
 {
@@ -12,7 +13,7 @@ trait HasSorting
 
     protected ?AppliesSorting $sortApplierInstance = null;
 
-    protected function applySorting(QueryContext $context): void
+    protected function applySorting(QueryContext $context, array $configuration = []): void
     {
         $sortParam = $context->request->query('sort');
 
@@ -20,6 +21,19 @@ trait HasSorting
 
         if ($sorts === []) {
             return;
+        }
+
+        $allowedSorts = array_values(array_filter(
+            is_array($configuration['sorts'] ?? null) ? $configuration['sorts'] : [],
+            static fn ($value) => is_string($value) && $value !== ''
+        ));
+
+        if ($allowedSorts !== []) {
+            foreach ($sorts as $sort) {
+                if (!in_array($sort['field'], $allowedSorts, true)) {
+                    throw new HttpException(422, sprintf('Sorting by "%s" is not allowed.', $sort['field']));
+                }
+            }
         }
 
         $this->sortApplier()->apply($context->query, $sorts);

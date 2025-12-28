@@ -75,6 +75,7 @@ Each model entry can:
 - Call `->allowedFilters([...])` to restrict which operators are accepted per field (for example `['created_at' => ['eq', 'between']]`).
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
+- Call `->sorts([...])` to whitelist which columns can be used for sorting (matching the syntax accepted by the `sort` query parameter).
 
 ### Model Aliases
 
@@ -200,6 +201,7 @@ sort=created_at:desc,id:asc
 ```
 
 Ordering is applied exactly as provided and does not assume a primary key.
+Call `->sorts(['created_at', 'id'])` on the builder to whitelist the fields clients may sort by; any attempt to sort using a field outside that list will result in HTTP 422.
 
 ### Pagination
 
