@@ -56,8 +56,10 @@ class OpenAPICommandTest extends TestCase
         $this->assertIsArray($document);
         $this->assertSame('3.1.0', $document['openapi']);
         $this->assertSame('Test Query Gate', $document['info']['title']);
-        $this->assertArrayHasKey('/query', $document['paths']);
-        $this->assertArrayHasKey('get', $document['paths']['/query']);
+        $this->assertArrayHasKey('/query/posts', $document['paths']);
+        $this->assertArrayHasKey('get', $document['paths']['/query/posts']);
+        $this->assertSame('List Posts', $document['paths']['/query/posts']['get']['summary']);
+        $this->assertArrayHasKey('/query/posts/{id}', $document['paths']);
         $this->assertArrayHasKey('x-query-gate', $document);
         $this->assertArrayHasKey('models', $document['x-query-gate']);
         $this->assertNotEmpty($document['x-query-gate']['models']);

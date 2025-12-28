@@ -3,6 +3,7 @@
 namespace BehindSolution\LaravelQueryGate\OpenApi;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use Illuminate\Support\Str;
 
 class OpenApiGenerator
 {
@@ -19,7 +20,7 @@ class OpenApiGenerator
             'openapi' => '3.1.0',
             'info' => $this->buildInfo($openApiConfig),
             'servers' => $this->buildServers($openApiConfig),
-            'tags' => $this->buildTags($openApiConfig),
+            'tags' => $this->buildTags($openApiConfig, $models),
             'paths' => $this->buildPaths($config, $models, $openApiConfig),
             'components' => $this->buildComponents($models, $openApiConfig),
             'security' => $this->buildSecurityRequirement($openApiConfig),
@@ -417,11 +418,49 @@ class OpenApiGenerator
      * @param array<string, mixed> $config
      * @return array<int, array<string, mixed>>
      */
-    protected function buildTags(array $config): array
+    protected function buildTags(array $config, array $models): array
     {
         $tags = $config['tags'] ?? [];
 
-        if (!is_array($tags) || $tags === []) {
+        $result = [];
+
+        if (is_array($tags)) {
+            foreach ($tags as $tag) {
+                if (is_string($tag) && $tag !== '') {
+                    $result[] = [
+                        'name' => $tag,
+                    ];
+
+                    continue;
+                }
+
+                if (is_array($tag) && isset($tag['name']) && is_string($tag['name']) && $tag['name'] !== '') {
+                    $result[] = array_filter([
+                        'name' => $tag['name'],
+                        'description' => is_string($tag['description'] ?? null) ? $tag['description'] : null,
+                    ], static fn ($value) => $value !== null);
+                }
+            }
+        }
+
+        $existing = array_map(static function ($tag) {
+            return strtolower($tag['name']);
+        }, $result);
+
+        foreach ($models as $model) {
+            $tagName = $this->resolveModelTagName($model);
+
+            if (!in_array(strtolower($tagName), $existing, true)) {
+                $result[] = array_filter([
+                    'name' => $tagName,
+                    'description' => 'Operations for ' . $model['model'],
+                ], static fn ($value) => $value !== null);
+
+                $existing[] = strtolower($tagName);
+            }
+        }
+
+        if ($result === []) {
             return [
                 [
                     'name' => 'Query Gate',
@@ -430,26 +469,7 @@ class OpenApiGenerator
             ];
         }
 
-        $result = [];
-
-        foreach ($tags as $tag) {
-            if (is_string($tag) && $tag !== '') {
-                $result[] = [
-                    'name' => $tag,
-                ];
-
-                continue;
-            }
-
-            if (is_array($tag) && isset($tag['name']) && is_string($tag['name']) && $tag['name'] !== '') {
-                $result[] = array_filter([
-                    'name' => $tag['name'],
-                    'description' => is_string($tag['description'] ?? null) ? $tag['description'] : null,
-                ], static fn ($value) => $value !== null);
-            }
-        }
-
-        return $result === [] ? [['name' => 'Query Gate']] : $result;
+        return $result;
     }
 
     /**
@@ -467,57 +487,74 @@ class OpenApiGenerator
             $basePath = '/';
         }
 
-        $tag = $this->resolvePrimaryTag($openApiConfig);
-
         $paths = [];
-        $paths[$basePath] = array_filter([
-            'get' => $this->buildIndexOperation($models, $tag, $openApiConfig),
-            'post' => $this->hasAction($models, 'create')
-                ? $this->buildActionOperation('create', $models, $tag, $openApiConfig)
-                : null,
-        ]);
 
-        if ($this->hasAction($models, 'update') || $this->hasAction($models, 'delete')) {
-            $paths[$basePath . '/{id}'] = array_filter([
-                'patch' => $this->hasAction($models, 'update')
-                    ? $this->buildActionOperation('update', $models, $tag, $openApiConfig, true)
-                    : null,
-                'delete' => $this->hasAction($models, 'delete')
-                    ? $this->buildDeleteOperation($models, $tag, $openApiConfig)
+        foreach ($models as $model) {
+            $tag = $this->resolveModelTagName($model);
+            $listPath = $this->buildModelListPath($basePath, $model);
+            $paths[$listPath] = array_filter([
+                'parameters' => [
+                    $this->buildModelParameter($model),
+                ],
+                'get' => $this->buildModelIndexOperation($model, $tag, $openApiConfig, $basePath),
+                'post' => $this->modelHasAction($model, 'create')
+                    ? $this->buildModelActionOperation('create', $model, $tag, $openApiConfig, false, $basePath)
                     : null,
             ]);
+
+            if ($this->modelHasAction($model, 'update') || $this->modelHasAction($model, 'delete')) {
+                $detailPath = $this->buildModelDetailPath($listPath);
+
+                $parameters = [
+                    $this->buildModelParameter($model),
+                    $this->buildIdentifierParameter(),
+                ];
+
+                $paths[$detailPath] = array_filter([
+                    'parameters' => $parameters,
+                    'patch' => $this->modelHasAction($model, 'update')
+                        ? $this->buildModelActionOperation('update', $model, $tag, $openApiConfig, true, $basePath . '/{id}')
+                        : null,
+                    'delete' => $this->modelHasAction($model, 'delete')
+                        ? $this->buildModelDeleteOperation($model, $tag, $openApiConfig, $basePath . '/{id}')
+                        : null,
+                ]);
+            }
         }
 
         return $paths;
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $models
-     * @return bool
-     */
-    protected function hasAction(array $models, string $action): bool
+    protected function buildModelListPath(string $basePath, array $model): string
     {
-        foreach ($models as $model) {
-            if (isset($model['actions'][$action])) {
-                return true;
-            }
+        $slug = $this->modelSlug($model);
+
+        if ($basePath === '/') {
+            return '/' . $slug;
         }
 
-        return false;
+        return rtrim($basePath, '/') . '/' . $slug;
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $models
-     * @return array<string, mixed>
-     */
-    protected function buildIndexOperation(array $models, string $tag, array $openApiConfig): array
+    protected function buildModelDetailPath(string $listPath): string
     {
+        return rtrim($listPath, '/') . '/{id}';
+    }
+
+    protected function modelHasAction(array $model, string $action): bool
+    {
+        return isset($model['actions'][$action]);
+    }
+
+    protected function buildModelIndexOperation(array $model, string $tag, array $openApiConfig, string $originalPath): array
+    {
+        $plural = $this->resolveModelPluralName($model);
+
         return $this->removeEmptyValues([
-            'summary' => 'List resources via Query Gate',
-            'description' => 'Returns results for the selected model applying filters, sorting, selection, and pagination rules.',
+            'summary' => 'List ' . $plural,
+            'description' => 'Returns ' . strtolower($plural) . ' applying Query Gate filters, sorting, selection, and pagination rules.',
             'tags' => [$tag],
             'parameters' => [
-                $this->buildModelParameter($models),
                 $this->buildFilterParameter(),
                 $this->buildSortParameter(),
                 $this->buildCursorParameter(),
@@ -536,91 +573,146 @@ class OpenApiGenerator
                 ],
             ],
             'security' => $this->buildSecurityRequirement($openApiConfig),
-            'x-query-gate-models' => array_map(function ($model) {
-                return [
-                    'model' => $model['model'],
-                    'aliases' => $model['aliases'],
-                    'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
-                ];
-            }, array_values($models)),
+            'x-query-gate' => [
+                'model' => $model['model'],
+                'aliases' => $model['aliases'],
+                'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
+                'original_path' => $originalPath,
+            ],
         ]);
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $models
-     * @return array<string, mixed>
-     */
-    protected function buildActionOperation(
+    protected function buildModelActionOperation(
         string $action,
-        array $models,
+        array $model,
         string $tag,
         array $openApiConfig,
-        bool $withIdentifier = false
+        bool $withIdentifier,
+        string $originalPath
     ): array {
+        $singular = $this->resolveModelSingularName($model);
+
         return $this->removeEmptyValues([
-            'summary' => ucfirst($action) . ' resource via Query Gate',
-            'description' => 'Executes the "' . $action . '" action for the selected model.',
+            'summary' => ucfirst($action) . ' ' . $singular,
+            'description' => 'Executes the "' . $action . '" action for ' . strtolower($singular) . ' via Query Gate.',
             'tags' => [$tag],
-            'parameters' => array_filter([
-                $this->buildModelParameter($models),
-                $withIdentifier ? $this->buildIdentifierParameter() : null,
-            ]),
-            'requestBody' => $this->buildRequestBody($models, $action),
+            'requestBody' => $this->buildModelRequestBody($model, $action),
             'responses' => $this->buildActionResponses($action),
             'security' => $this->buildSecurityRequirement($openApiConfig),
+            'x-query-gate' => [
+                'model' => $model['model'],
+                'aliases' => $model['aliases'],
+                'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
+                'original_path' => $originalPath,
+                'requires_identifier' => $withIdentifier,
+            ],
         ]);
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $models
-     * @return array<string, mixed>
-     */
-    protected function buildDeleteOperation(array $models, string $tag, array $openApiConfig): array
+    protected function buildModelDeleteOperation(array $model, string $tag, array $openApiConfig, string $originalPath): array
     {
+        $singular = $this->resolveModelSingularName($model);
+
         return $this->removeEmptyValues([
-            'summary' => 'Delete resource via Query Gate',
-            'description' => 'Executes the "delete" action for the selected model.',
+            'summary' => 'Delete ' . $singular,
+            'description' => 'Executes the "delete" action for ' . strtolower($singular) . ' via Query Gate.',
             'tags' => [$tag],
-            'parameters' => [
-                $this->buildModelParameter($models),
-                $this->buildIdentifierParameter(),
-            ],
             'responses' => [
                 '204' => [
                     'description' => 'Resource deleted successfully.',
                 ],
             ],
             'security' => $this->buildSecurityRequirement($openApiConfig),
+            'x-query-gate' => [
+                'model' => $model['model'],
+                'aliases' => $model['aliases'],
+                'definition' => '#/components/schemas/' . $model['component'] . 'Definition',
+                'original_path' => $originalPath,
+                'requires_identifier' => true,
+            ],
         ]);
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $models
-     * @return array<string, mixed>
-     */
-    protected function buildModelParameter(array $models): array
+    protected function buildModelRequestBody(array $model, string $action): ?array
     {
-        $enum = [];
+        return $this->buildRequestBody([$model], $action);
+    }
 
-        foreach ($models as $model) {
-            $enum[] = $model['model'];
-            foreach ($model['aliases'] as $alias) {
-                $enum[] = $alias;
-            }
-        }
+    protected function buildModelParameter(array $model): array
+    {
+        $identifiers = array_values(array_unique(array_filter(array_merge(
+            $model['aliases'],
+            [$model['model']]
+        ), static function ($value) {
+            return is_string($value) && $value !== '';
+        })));
 
-        $enum = array_values(array_unique($enum));
+        $default = $identifiers[0] ?? $model['model'];
 
         return [
             'name' => 'model',
             'in' => 'query',
             'required' => true,
-            'description' => 'Model to operate on. Accepts fully-qualified class names or configured aliases.',
-            'schema' => [
+            'description' => 'Fixed model identifier for this endpoint.',
+            'schema' => array_filter([
                 'type' => 'string',
-                'enum' => $enum,
-            ],
+                'enum' => $identifiers,
+                'default' => $default,
+            ], static fn ($value) => $value !== null),
+            'example' => $default,
+            'x-query-gate-model' => $model['model'],
         ];
+    }
+
+    protected function modelSlug(array $model): string
+    {
+        if (!empty($model['aliases'])) {
+            $slug = Str::slug($model['aliases'][0]);
+
+            if ($slug !== '') {
+                return $slug;
+            }
+        }
+
+        $class = class_basename($model['model']);
+        $slug = Str::slug($class);
+
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        return 'model-' . substr(md5($model['model']), 0, 8);
+    }
+
+    protected function resolveModelTagName(array $model): string
+    {
+        return $this->resolveModelPluralName($model);
+    }
+
+    protected function resolveModelSingularName(array $model): string
+    {
+        $base = $this->resolveModelBaseName($model);
+
+        return Str::title(Str::singular($base));
+    }
+
+    protected function resolveModelPluralName(array $model): string
+    {
+        $base = $this->resolveModelBaseName($model);
+
+        return Str::title(Str::plural($base));
+    }
+
+    protected function resolveModelBaseName(array $model): string
+    {
+        if (!empty($model['aliases'])) {
+            return str_replace(['-', '_'], ' ', strtolower($model['aliases'][0]));
+        }
+
+        $class = class_basename($model['model']);
+        $snake = Str::snake($class);
+
+        return str_replace('_', ' ', strtolower($snake));
     }
 
     protected function buildFilterParameter(): array
