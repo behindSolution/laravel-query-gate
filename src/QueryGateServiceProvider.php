@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate;
 
 use BehindSolution\LaravelQueryGate\Console\GenerateSwaggerCommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
+use BehindSolution\LaravelQueryGate\Http\Controllers\SwaggerController;
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -20,9 +21,12 @@ class QueryGateServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'query-gate');
+
         $this->registerPublishing();
         $this->registerMiddlewareAlias();
         $this->registerRoute();
+        $this->registerSwaggerRoutes();
         $this->registerCommands();
     }
 
@@ -69,6 +73,52 @@ class QueryGateServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/query-gate.php' => config_path('query-gate.php'),
         ], 'query-gate-config');
+
+        $this->publishes([
+            __DIR__ . '/../resources/views/swagger.blade.php' => resource_path('views/vendor/query-gate/swagger.blade.php'),
+        ], 'query-gate-views');
+    }
+
+    protected function registerSwaggerRoutes(): void
+    {
+        $config = config('query-gate.swagger');
+
+        if (!is_array($config)) {
+            $config = [];
+        }
+
+        $uiPath = $this->normalizePath($config['route'] ?? null, 'query/docs');
+        $defaultJson = $uiPath === '/'
+            ? 'docs.json'
+            : trim($uiPath, '/') . '.json';
+        $jsonPath = $this->normalizePath($config['json_route'] ?? null, $defaultJson);
+        $middleware = array_filter((array) ($config['middleware'] ?? []));
+
+        Route::middleware($middleware)
+            ->group(function () use ($uiPath, $jsonPath) {
+                Route::get($jsonPath, [SwaggerController::class, 'json'])
+                    ->name('query-gate.swagger.json');
+
+                Route::get($uiPath, [SwaggerController::class, 'ui'])
+                    ->name('query-gate.swagger.ui');
+            });
+    }
+
+    protected function normalizePath($path, string $fallback): string
+    {
+        $value = is_string($path) ? trim($path) : '';
+
+        if ($value === '') {
+            $value = $fallback;
+        }
+
+        $value = trim($value, '/');
+
+        if ($value === '') {
+            return '/';
+        }
+
+        return $value;
     }
 
     protected function registerCommands(): void

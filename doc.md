@@ -123,6 +123,11 @@ php artisan qg:swagger
 
 Use `--output` (absolute path) and `--format=yaml` if you prefer custom destinations or YAML. The generator reads every `QueryGate::make()` declaration and exposes filters, allowed operators, pagination mode, select clauses, actions, policies, cache TTLs, and alias information through `x-query-gate` metadata blocks.
 
+When `swagger.enabled` is `true`, Query Gate also registers two routes:
+
+- `GET /query/docs.json` (configurable via `swagger.json_route`) returns the generated document on demand.
+- `GET /query/docs` (configurable via `swagger.route`) serves a Swagger UI powered by CDN assets pointing to the JSON endpoint. Apply custom middleware through `swagger.middleware` if the docs should be protected.
+
 ## Making Requests
 
 All requests are handled by the registered route (default `GET /query`). Provide either the fully-qualified model name or one of the configured aliases:

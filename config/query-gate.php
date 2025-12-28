@@ -19,7 +19,8 @@ return [
         'title' => 'Query Gate API',
         'description' => 'Generated documentation for Query Gate endpoints.',
         'version' => '1.0.0',
-        'route' => null,
+        'route' => 'query/docs',
+        'json_route' => null,
         'servers' => [],
         'output' => [
             'format' => 'json',
@@ -34,6 +35,7 @@ return [
             'flows' => [],
         ],
         'tags' => [],
+        'middleware' => [],
     ],
 
     'model_aliases' => [
