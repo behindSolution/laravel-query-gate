@@ -114,15 +114,6 @@ With the trait in place, the configuration can simply list `User::class`:
 ];
 ```
 
-### Model Aliases
-
-When you want shorter identifiers in the client, declare aliases in the configuration:
-
-```php
-```
-
-Aliases are case-insensitive and map to the underlying fully-qualified model name, so requests can use `/query?model=users` while the original namespace continues to work.
-
 ### OpenAPI
 
 Query Gate can export an OpenAPI document representing every configured model. Adjust the `openAPI` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
