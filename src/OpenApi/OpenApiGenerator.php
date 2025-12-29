@@ -3,15 +3,17 @@
 namespace BehindSolution\LaravelQueryGate\OpenApi;
 
 use BehindSolution\LaravelQueryGate\Support\FilterParser;
-use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Support\ModelRegistry;
 use Illuminate\Support\Str;
 
 class OpenApiGenerator
 {
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $rawModelConfigs = [];
+    protected ModelRegistry $registry;
+
+    public function __construct(ModelRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
 
     /**
      * @param array<string, mixed> $config
@@ -42,25 +44,18 @@ class OpenApiGenerator
     protected function resolveModels(array $config): array
     {
         $definitions = [];
-        $aliases = $this->invertAliases($config['model_aliases'] ?? []);
-        $models = $config['models'] ?? [];
-        $this->rawModelConfigs = is_array($models) ? $models : [];
-
-        if (!is_array($models)) {
-            return [];
-        }
-
-        foreach ($models as $modelClass => $definition) {
+        foreach ($this->registry->definitions() as $modelClass => $definition) {
             if (!is_string($modelClass) || $modelClass === '') {
                 continue;
             }
 
-            if ($definition instanceof QueryGate) {
-                $definition = $definition->toArray();
-            }
+            $definition = is_array($definition) ? $definition : [];
 
-            if (!is_array($definition)) {
-                $definition = [];
+            $alias = null;
+
+            if (isset($definition['alias']) && is_string($definition['alias']) && $definition['alias'] !== '') {
+                $alias = $definition['alias'];
+                unset($definition['alias']);
             }
 
             $component = $this->buildComponentName($modelClass);
@@ -68,7 +63,8 @@ class OpenApiGenerator
             $definitions[$modelClass] = array_merge(
                 [
                     'model' => $modelClass,
-                    'aliases' => $aliases[$modelClass] ?? [],
+                    'alias' => $alias,
+                    'aliases' => $alias !== null ? [$alias] : [],
                     'component' => $component,
                     'definition' => '#/components/schemas/' . $component . 'Definition',
                 ],
@@ -1367,33 +1363,6 @@ class OpenApiGenerator
         }
 
         return in_array($rule, $rules, true);
-    }
-
-    /**
-     * @param array<string, string> $aliases
-     * @return array<string, array<int, string>>
-     */
-    protected function invertAliases($aliases): array
-    {
-        $normalized = [];
-
-        if (!is_array($aliases)) {
-            return $normalized;
-        }
-
-        foreach ($aliases as $alias => $class) {
-            if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                continue;
-            }
-
-            $normalized[$class][] = $alias;
-        }
-
-        foreach ($normalized as $class => $list) {
-            $normalized[$class] = array_values(array_unique($list));
-        }
-
-        return $normalized;
     }
 
     protected function buildComponentName(string $modelClass): string

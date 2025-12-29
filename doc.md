@@ -41,6 +41,7 @@ return [
 
     'models' => [
         App\Models\User::class => QueryGate::make()
+            ->alias('users')
             ->cache(60, 'users-index')
             ->filters([
                 'created_at' => 'date',
@@ -76,6 +77,42 @@ Each model entry can:
 - Call `->rawFilters([...])` to override how specific filters are applied while still benefiting from the validation/safe-list provided by `->filters`.
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 - Call `->sorts([...])` to whitelist which columns can be used for sorting (matching the syntax accepted by the `sort` query parameter).
+- Call `->alias('users')` to expose pretty REST-like routes (e.g. `/query/users`, `/query/users/{id}`) in addition to the canonical query-string endpoint.
+
+### Using the HasQueryGate trait
+
+When you prefer to keep `config/query-gate.php` tidy, you can move the definition closer to the model by adding the `HasQueryGate` trait. Registering the class name alone tells Query Gate to call `Model::queryGate()` automatically:
+
+```php
+namespace App\Models;
+
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Traits\HasQueryGate;
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model
+{
+    use HasQueryGate;
+
+    public static function queryGate(): QueryGate
+    {
+        return QueryGate::make()
+            ->alias('users')
+            ->filters([
+                'created_at' => 'date',
+            ])
+            ->select(['name', 'email']);
+    }
+}
+```
+
+With the trait in place, the configuration can simply list `User::class`:
+
+```php
+'models' => [
+    App\Models\User::class,
+];
+```
 
 ### Model Aliases
 

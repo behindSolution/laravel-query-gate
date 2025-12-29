@@ -15,11 +15,8 @@ class OpenAPICommandTest extends TestCase
 
         @unlink($outputPath);
 
-        config()->set('query-gate.model_aliases', [
-            'posts' => Post::class,
-        ]);
-
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
             ->cache(120, 'posts-index')
             ->filters([
                 'title' => ['required', 'string', 'max:255'],
@@ -117,7 +114,7 @@ class OpenAPICommandTest extends TestCase
 
         @unlink($outputPath);
 
-        config()->set('query-gate.models.' . Post::class, QueryGate::make());
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()->alias('posts'));
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.openAPI.output.path', $outputPath);
         config()->set('query-gate.openAPI.modifiers', [

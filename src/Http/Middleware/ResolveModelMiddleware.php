@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate\Http\Middleware;
 
+use BehindSolution\LaravelQueryGate\Support\ModelRegistry;
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pipeline\Pipeline;
 use Illuminate\Routing\MiddlewareNameResolver;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ResolveModelMiddleware
@@ -20,10 +22,23 @@ class ResolveModelMiddleware
 
     public const ATTRIBUTE_BUILDER = 'query-gate.builder';
 
+    protected ModelRegistry $registry;
+
+    public function __construct(ModelRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
+
     public function handle(Request $request, Closure $next)
     {
-        $modelClass = $this->extractModelClass($request);
-        $configuration = $this->resolveConfiguration($modelClass);
+        try {
+            $definitions = $this->registry->definitions();
+        } catch (InvalidArgumentException $exception) {
+            throw new HttpException(500, $exception->getMessage(), $exception);
+        }
+
+        $modelClass = $this->extractModelClass($request, $definitions);
+        $configuration = $this->resolveConfiguration($modelClass, $definitions);
         $builder = $this->createBuilder($modelClass);
 
         $request->attributes->set(self::ATTRIBUTE_MODEL, $modelClass);
@@ -44,16 +59,20 @@ class ResolveModelMiddleware
             });
     }
 
-    protected function extractModelClass(Request $request): string
+    /**
+     * @param array<string, array<string, mixed>> $definitions
+     */
+    protected function extractModelClass(Request $request, array $definitions): string
     {
         $identifier = $this->resolveRawModelIdentifier($request);
 
-        $aliases = config('query-gate.model_aliases', []);
+        [$aliases, $slugs] = $this->aliasIndexes($definitions);
 
-        $model = $this->resolveAlias($identifier, $aliases);
+        $model = $aliases[strtolower($identifier)] ?? $identifier;
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
-            $model = $this->resolveSluggedModel($identifier, $aliases);
+            $slug = strtolower(Str::slug($identifier, '-'));
+            $model = $slugs[$slug] ?? $model;
         }
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
@@ -81,75 +100,11 @@ class ResolveModelMiddleware
     }
 
     /**
-     * @param array<string, string> $aliases
-     */
-    protected function resolveAlias(string $identifier, $aliases): string
-    {
-        if (!is_array($aliases) || $aliases === []) {
-            return $identifier;
-        }
-
-        $normalizedAliases = [];
-
-        foreach ($aliases as $alias => $class) {
-            if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                continue;
-            }
-
-            $normalizedAliases[strtolower($alias)] = $class;
-        }
-
-        $aliasMatch = $normalizedAliases[strtolower($identifier)] ?? null;
-
-        if (is_string($aliasMatch) && $aliasMatch !== '') {
-            return $aliasMatch;
-        }
-
-        return $identifier;
-    }
-
-    /**
-     * @param array<string, string> $aliases
-     */
-    protected function resolveSluggedModel(string $identifier, $aliases): string
-    {
-        $target = strtolower($identifier);
-
-        $models = config('query-gate.models', []);
-
-        if (is_array($models)) {
-            foreach ($models as $class => $definition) {
-                if (!is_string($class) || $class === '') {
-                    continue;
-                }
-
-                if (strtolower(Str::slug($class, '-')) === $target) {
-                    return $class;
-                }
-            }
-        }
-
-        if (is_array($aliases)) {
-            foreach ($aliases as $alias => $class) {
-                if (!is_string($alias) || $alias === '' || !is_string($class) || $class === '') {
-                    continue;
-                }
-
-                if (strtolower(Str::slug($alias, '-')) === $target) {
-                    return $class;
-                }
-            }
-        }
-
-        return $identifier;
-    }
-
-    /**
      * @return array<string, mixed>
      */
-    protected function resolveConfiguration(string $modelClass): array
+    protected function resolveConfiguration(string $modelClass, array $definitions): array
     {
-        $definition = config('query-gate.models.' . $modelClass);
+        $definition = $definitions[$modelClass] ?? null;
 
         if ($definition === null) {
             throw new HttpException(404, 'The requested model is not exposed through Query Gate.');
@@ -159,7 +114,11 @@ class ResolveModelMiddleware
             return $definition->toArray();
         }
 
-        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make().');
+        if (is_array($definition)) {
+            return $definition;
+        }
+
+        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make() or the HasQueryGate trait.');
     }
 
     protected function createBuilder(string $modelClass): Builder
@@ -192,6 +151,33 @@ class ResolveModelMiddleware
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $definitions
+     * @return array{0: array<string, string>, 1: array<string, string>}
+     */
+    protected function aliasIndexes(array $definitions): array
+    {
+        $aliases = [];
+        $slugs = [];
+
+        foreach ($definitions as $class => $definition) {
+            if (!is_string($class) || $class === '') {
+                continue;
+            }
+
+            $alias = $definition['alias'] ?? null;
+
+            if (is_string($alias) && $alias !== '') {
+                $aliases[strtolower($alias)] = $class;
+                $slugs[strtolower(Str::slug($alias, '-'))] = $class;
+            }
+
+            $slugs[strtolower(Str::slug($class, '-'))] = $class;
+        }
+
+        return [$aliases, $slugs];
     }
 }
 

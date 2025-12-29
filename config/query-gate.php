@@ -43,7 +43,7 @@ return [
 
     'models' => [
         // App\Models\User::class => QueryGate::make()
-        //      ->alias('users')
+        //     ->alias('users')
         //     ->cache(60)
         //     ->filters([
         //         'created_at' => 'date',
@@ -57,7 +57,7 @@ return [
         //         'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
         //     ])
         //     ->select(['created_at', 'posts.title'])
-//     ->sorts(['created_at'])
+        //     ->sorts(['created_at'])
         //     ->query(fn ($query, $request) => $query->where('active', true))
         //     ->middleware(['auth:sanctum'])
         //     ->paginationMode('cursor')
@@ -65,6 +65,9 @@ return [
         //         ->update(fn ($action) => $action->validations(['name' => ['sometimes', 'string']]))
         //         ->delete()
         //     ),
+        //
+        // // Or simply list the model class when it implements HasQueryGate:
+        // App\Models\User::class,
     ],
 
 ];
