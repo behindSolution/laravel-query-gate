@@ -6,6 +6,7 @@ use BehindSolution\LaravelQueryGate\Console\OpenAPICommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
 use BehindSolution\LaravelQueryGate\Http\Controllers\OpenAPIController;
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
+use BehindSolution\LaravelQueryGate\Support\ModelRegistry;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -17,6 +18,10 @@ class QueryGateServiceProvider extends ServiceProvider
             __DIR__ . '/../config/query-gate.php',
             'query-gate'
         );
+
+        $this->app->singleton(ModelRegistry::class, function ($app) {
+            return new ModelRegistry($app['config']);
+        });
     }
 
     public function boot(): void

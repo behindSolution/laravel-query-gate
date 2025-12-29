@@ -3,11 +3,18 @@
 namespace BehindSolution\LaravelQueryGate\OpenApi;
 
 use BehindSolution\LaravelQueryGate\Support\FilterParser;
-use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Support\ModelRegistry;
 use Illuminate\Support\Str;
 
 class OpenApiGenerator
 {
+    protected ModelRegistry $registry;
+
+    public function __construct(ModelRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
+
     /**
      * @param array<string, mixed> $config
      * @return array<string, mixed>
@@ -37,26 +44,14 @@ class OpenApiGenerator
     protected function resolveModels(array $config): array
     {
         $definitions = [];
-        $models = $config['models'] ?? [];
-
-        if (!is_array($models)) {
-            return [];
-        }
-
-        foreach ($models as $modelClass => $definition) {
+        foreach ($this->registry->definitions() as $modelClass => $definition) {
             if (!is_string($modelClass) || $modelClass === '') {
                 continue;
             }
 
+            $definition = is_array($definition) ? $definition : [];
+
             $alias = null;
-
-            if ($definition instanceof QueryGate) {
-                $definition = $definition->toArray();
-            }
-
-            if (!is_array($definition)) {
-                $definition = [];
-            }
 
             if (isset($definition['alias']) && is_string($definition['alias']) && $definition['alias'] !== '') {
                 $alias = $definition['alias'];

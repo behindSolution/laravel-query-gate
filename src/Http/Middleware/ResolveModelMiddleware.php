@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate\Http\Middleware;
 
+use BehindSolution\LaravelQueryGate\Support\ModelRegistry;
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pipeline\Pipeline;
 use Illuminate\Routing\MiddlewareNameResolver;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ResolveModelMiddleware
@@ -20,10 +22,23 @@ class ResolveModelMiddleware
 
     public const ATTRIBUTE_BUILDER = 'query-gate.builder';
 
+    protected ModelRegistry $registry;
+
+    public function __construct(ModelRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
+
     public function handle(Request $request, Closure $next)
     {
-        $modelClass = $this->extractModelClass($request);
-        $configuration = $this->resolveConfiguration($modelClass);
+        try {
+            $definitions = $this->registry->definitions();
+        } catch (InvalidArgumentException $exception) {
+            throw new HttpException(500, $exception->getMessage(), $exception);
+        }
+
+        $modelClass = $this->extractModelClass($request, $definitions);
+        $configuration = $this->resolveConfiguration($modelClass, $definitions);
         $builder = $this->createBuilder($modelClass);
 
         $request->attributes->set(self::ATTRIBUTE_MODEL, $modelClass);
@@ -44,11 +59,14 @@ class ResolveModelMiddleware
             });
     }
 
-    protected function extractModelClass(Request $request): string
+    /**
+     * @param array<string, array<string, mixed>> $definitions
+     */
+    protected function extractModelClass(Request $request, array $definitions): string
     {
         $identifier = $this->resolveRawModelIdentifier($request);
 
-        [$aliases, $slugs] = $this->aliasIndexes();
+        [$aliases, $slugs] = $this->aliasIndexes($definitions);
 
         $model = $aliases[strtolower($identifier)] ?? $identifier;
 
@@ -84,9 +102,9 @@ class ResolveModelMiddleware
     /**
      * @return array<string, mixed>
      */
-    protected function resolveConfiguration(string $modelClass): array
+    protected function resolveConfiguration(string $modelClass, array $definitions): array
     {
-        $definition = config('query-gate.models.' . $modelClass);
+        $definition = $definitions[$modelClass] ?? null;
 
         if ($definition === null) {
             throw new HttpException(404, 'The requested model is not exposed through Query Gate.');
@@ -96,7 +114,11 @@ class ResolveModelMiddleware
             return $definition->toArray();
         }
 
-        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make().');
+        if (is_array($definition)) {
+            return $definition;
+        }
+
+        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make() or the HasQueryGate trait.');
     }
 
     protected function createBuilder(string $modelClass): Builder
@@ -132,30 +154,17 @@ class ResolveModelMiddleware
     }
 
     /**
+     * @param array<string, array<string, mixed>> $definitions
      * @return array{0: array<string, string>, 1: array<string, string>}
      */
-    protected function aliasIndexes(): array
+    protected function aliasIndexes(array $definitions): array
     {
-        $models = config('query-gate.models', []);
-
         $aliases = [];
         $slugs = [];
 
-        if (!is_array($models)) {
-            return [$aliases, $slugs];
-        }
-
-        foreach ($models as $class => $definition) {
+        foreach ($definitions as $class => $definition) {
             if (!is_string($class) || $class === '') {
                 continue;
-            }
-
-            if ($definition instanceof QueryGate) {
-                $definition = $definition->toArray();
-            }
-
-            if (!is_array($definition)) {
-                $definition = [];
             }
 
             $alias = $definition['alias'] ?? null;

@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\Article;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Http\Request;
@@ -97,7 +98,10 @@ class ResolveModelMiddlewareTest extends TestCase
         ]);
 
         $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('Query Gate model definitions must use QueryGate::make().');
+        $this->expectExceptionMessage(sprintf(
+            'Query Gate definition for [%s] must be provided via QueryGate::make() or the HasQueryGate trait.',
+            Post::class
+        ));
 
         $middleware->handle($request, static function () {
             return null;
@@ -128,6 +132,42 @@ class ResolveModelMiddlewareTest extends TestCase
         $this->assertIsArray($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION));
         $this->assertNotNull($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_BUILDER));
         $this->assertSame(204, $response->getStatusCode());
+    }
+
+    public function testResolvesTraitConfiguredModel(): void
+    {
+        config()->set('query-gate.models', [
+            Article::class,
+        ]);
+
+        $middleware = app(ResolveModelMiddleware::class);
+
+        $request = Request::create('/query/articles', 'GET');
+
+        $request->setRouteResolver(static function () {
+            return new class {
+                public function parameter(string $key, $default = null)
+                {
+                    if ($key === 'model') {
+                        return 'articles';
+                    }
+
+                    return $default;
+                }
+            };
+        });
+
+        $response = $middleware->handle($request, static function ($handledRequest) {
+            return response()->noContent();
+        });
+
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION);
+
+        $this->assertSame(204, $response->getStatusCode());
+        $this->assertSame(Article::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertIsArray($configuration);
+        $this->assertSame('articles', $configuration['alias']);
+        $this->assertSame(['string', 'max:255'], $configuration['filters']['title']);
     }
 
     public function testResolvesModelAlias(): void
