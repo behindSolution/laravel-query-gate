@@ -44,27 +44,28 @@ return [
     'models' => [
         // App\Models\User::class => QueryGate::make()
         //     ->alias('users')
-        //     ->cache(60)
-        //     ->filters([
-        //         'created_at' => 'date',
-        //         'posts.title' => ['string', 'max:255'],
-        //     ])
-        //     ->allowedFilters([
-        //         'created_at' => ['eq', 'between'],
-        //         'posts.title' => ['like'],
-        //     ])
-        //     ->rawFilters([
-        //         'posts.title' => fn ($builder, $operator, $value, $column) => $builder->where($column, 'like', '%' . $value . '%'),
-        //     ])
-        //     ->select(['created_at', 'posts.title'])
-        //     ->sorts(['created_at'])
-        //     ->query(fn ($query, $request) => $query->where('active', true))
+        //     ->query(fn ($query) => $query->where('active', true))
         //     ->middleware(['auth:sanctum'])
-        //     ->paginationMode('cursor')
-        //     ->actions(fn ($actions) => $actions
-        //         ->update(fn ($action) => $action->validations(['name' => ['sometimes', 'string']]))
-        //         ->delete()
-        //     ),
+        //     ->version('2024-01-01', function (QueryGate $gate) {
+        //         $gate->filters([
+        //             'name' => 'string',
+        //             'email' => 'email',
+        //         ])->allowedFilters([
+        //             'name' => ['like'],
+        //             'email' => ['eq'],
+        //         ])->select(['id', 'name', 'email']);
+        //     })
+        //     ->version('2024-11-01', function (QueryGate $gate) {
+        //         $gate->filters([
+        //             'name' => 'string',
+        //             'email' => 'email',
+        //             'created_at' => 'date',
+        //         ])->allowedFilters([
+        //             'name' => ['like'],
+        //             'email' => ['eq', 'like'],
+        //             'created_at' => ['gte', 'lte', 'between'],
+        //         ])->select(['id', 'name', 'email', 'created_at']);
+        //     }),
         //
         // // Or simply list the model class when it implements HasQueryGate:
         // App\Models\User::class,
