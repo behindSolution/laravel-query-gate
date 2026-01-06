@@ -313,16 +313,20 @@ class ResolveModelMiddlewareTest extends TestCase
         $request = Request::create('/query', 'GET', [
             'model' => Post::class,
         ]);
+        $request->headers->set('Accept', 'application/json');
 
-        $this->expectException(HttpException::class);
-        $this->expectExceptionMessage(sprintf(
-            'Model [%s] must define a static queryGate() method. Use the HasQueryGate trait or provide a custom implementation.',
-            Post::class
-        ));
-
-        $middleware->handle($request, static function () {
+        $response = $middleware->handle($request, static function () {
             return response()->noContent();
         });
+
+        $this->assertSame(500, $response->getStatusCode());
+        $this->assertSame([
+            'message' => sprintf(
+                'Invalid Query Gate configuration for [%s]: Model [%s] must define a static queryGate() method. Use the HasQueryGate trait or provide a custom implementation.',
+                Post::class,
+                Post::class
+            ),
+        ], $response->getData(true));
     }
 }
 

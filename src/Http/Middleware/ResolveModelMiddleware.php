@@ -38,6 +38,12 @@ class ResolveModelMiddleware
         try {
             $definitions = $this->registry->definitions();
         } catch (InvalidArgumentException $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], 500);
+            }
+
             throw new HttpException(500, $exception->getMessage(), $exception);
         }
 
