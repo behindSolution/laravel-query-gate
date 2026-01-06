@@ -52,6 +52,51 @@ class QueryGateController
         return $this->actionExecutor->execute('delete', $request, $model, $configuration, $id);
     }
 
+    public function changelog(Request $request)
+    {
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, []);
+        $versions = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_VERSIONS);
+        $model = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL);
+        $active = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_VERSION);
+
+        if (!is_array($versions) || ($versions['definitions'] ?? []) === []) {
+            return response()->json([
+                'model' => $model,
+                'alias' => is_array($configuration) && isset($configuration['alias']) ? $configuration['alias'] : null,
+                'default' => null,
+                'active' => $active,
+                'versions' => [],
+            ]);
+        }
+
+        $order = is_array($versions['order'] ?? null)
+            ? $versions['order']
+            : array_keys($versions['definitions']);
+
+        $changelog = is_array($versions['changelog'] ?? null) ? $versions['changelog'] : [];
+
+        $timeline = [];
+
+        foreach ($order as $identifier) {
+            if (!is_string($identifier) || $identifier === '') {
+                continue;
+            }
+
+            $timeline[] = [
+                'version' => $identifier,
+                'changes' => $changelog[$identifier] ?? [],
+            ];
+        }
+
+        return response()->json([
+            'model' => $model,
+            'alias' => is_array($configuration) && isset($configuration['alias']) ? $configuration['alias'] : null,
+            'default' => $versions['default'] ?? null,
+            'active' => $active ?? ($versions['default'] ?? null),
+            'versions' => $timeline,
+        ]);
+    }
+
     /**
      * @return array{0: string, 1: array<string, mixed>, 2: Builder}
      */

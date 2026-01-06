@@ -55,6 +55,9 @@ class QueryGateServiceProvider extends ServiceProvider
         Route::middleware($middleware)
             ->prefix($prefix)
             ->group(function () {
+                Route::get('/{model}/__changelog', [QueryGateController::class, 'changelog'])
+                    ->name('query-gate.changelog');
+
                 Route::get('/', [QueryGateController::class, 'index'])
                     ->name('query-gate.index');
 

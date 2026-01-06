@@ -22,6 +22,10 @@ class ResolveModelMiddleware
 
     public const ATTRIBUTE_BUILDER = 'query-gate.builder';
 
+    public const ATTRIBUTE_VERSION = 'query-gate.version';
+
+    public const ATTRIBUTE_VERSIONS = 'query-gate.versions';
+
     protected ModelRegistry $registry;
 
     public function __construct(ModelRegistry $registry)
@@ -34,16 +38,25 @@ class ResolveModelMiddleware
         try {
             $definitions = $this->registry->definitions();
         } catch (InvalidArgumentException $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], 500);
+            }
+
             throw new HttpException(500, $exception->getMessage(), $exception);
         }
 
         $modelClass = $this->extractModelClass($request, $definitions);
         $configuration = $this->resolveConfiguration($modelClass, $definitions);
+        [$configuration, $versionsMeta, $activeVersion] = $this->applyVersionSelection($request, $configuration);
         $builder = $this->createBuilder($modelClass);
 
         $request->attributes->set(self::ATTRIBUTE_MODEL, $modelClass);
         $request->attributes->set(self::ATTRIBUTE_CONFIGURATION, $configuration);
         $request->attributes->set(self::ATTRIBUTE_BUILDER, $builder);
+        $request->attributes->set(self::ATTRIBUTE_VERSION, $activeVersion);
+        $request->attributes->set(self::ATTRIBUTE_VERSIONS, $versionsMeta);
 
         $middlewares = $this->normalizeMiddleware($configuration['middleware'] ?? []);
 
@@ -178,6 +191,72 @@ class ResolveModelMiddleware
         }
 
         return [$aliases, $slugs];
+    }
+
+    /**
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>|null, 2: string|null}
+     */
+    protected function applyVersionSelection(Request $request, array $configuration): array
+    {
+        $versions = $configuration['versions'] ?? null;
+
+        if (!is_array($versions)) {
+            return [$configuration, null, null];
+        }
+
+        $definitions = is_array($versions['definitions'] ?? null) ? $versions['definitions'] : [];
+
+        if ($definitions === []) {
+            return [$configuration, null, null];
+        }
+
+        $order = is_array($versions['order'] ?? null)
+            ? array_values(array_filter($versions['order'], static fn ($value) => is_string($value) && $value !== ''))
+            : array_keys($definitions);
+
+        $default = $versions['default'] ?? null;
+
+        if (!is_string($default) || $default === '' || !isset($definitions[$default])) {
+            $default = end($order) ?: null;
+            if (!is_string($default) || $default === '' || !isset($definitions[$default])) {
+                $default = array_key_first($definitions);
+            }
+        }
+
+        $requestedVersion = $request->headers->get('X-Query-Version');
+
+        if (!is_string($requestedVersion) || $requestedVersion === '') {
+            $requestedVersion = $request->query('version');
+        }
+
+        if (is_string($requestedVersion) && $requestedVersion !== '') {
+            if (!isset($definitions[$requestedVersion])) {
+                throw new HttpException(404, sprintf('Version "%s" is not available for this resource.', $requestedVersion));
+            }
+
+            $selected = $requestedVersion;
+        } else {
+            $selected = $default;
+        }
+
+        if (is_string($selected) && isset($definitions[$selected])) {
+            foreach ($definitions[$selected] as $key => $value) {
+                $configuration[$key] = $value;
+            }
+        }
+
+        $configuration['active_version'] = $selected;
+
+        $meta = [
+            'definitions' => $definitions,
+            'order' => $order,
+            'default' => $default,
+            'changelog' => is_array($versions['changelog'] ?? null) ? $versions['changelog'] : [],
+        ];
+
+        $configuration['versions'] = $meta;
+
+        return [$configuration, $meta, $selected];
     }
 }
 

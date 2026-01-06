@@ -152,6 +152,78 @@ class QueryGateControllerTest extends TestCase
 
         $this->assertSame(['deleted' => true], $result);
     }
+
+    public function testChangelogReturnsTimeline(): void
+    {
+        $request = Request::create('/query/posts/__changelog', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'alias' => 'posts',
+        ]);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_VERSION, '2024-01-01');
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_VERSIONS, [
+            'definitions' => [
+                '2024-01-01' => [],
+                '2024-11-01' => [],
+            ],
+            'order' => ['2024-01-01', '2024-11-01'],
+            'default' => '2024-11-01',
+            'changelog' => [
+                '2024-01-01' => [],
+                '2024-11-01' => ['Added filter: created_at'],
+            ],
+        ]);
+
+        $controller = new QueryGateController(
+            Mockery::mock(QueryExecutor::class),
+            Mockery::mock(ActionExecutor::class)
+        );
+
+        $response = $controller->changelog($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(Post::class, $payload['model']);
+        $this->assertSame('posts', $payload['alias']);
+        $this->assertSame('2024-11-01', $payload['default']);
+        $this->assertSame('2024-01-01', $payload['active']);
+        $this->assertSame([
+            [
+                'version' => '2024-01-01',
+                'changes' => [],
+            ],
+            [
+                'version' => '2024-11-01',
+                'changes' => ['Added filter: created_at'],
+            ],
+        ], $payload['versions']);
+    }
+
+    public function testChangelogReturnsEmptyTimelineWhenVersionsAreMissing(): void
+    {
+        $request = Request::create('/query/posts/__changelog', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'alias' => 'posts',
+        ]);
+
+        $controller = new QueryGateController(
+            Mockery::mock(QueryExecutor::class),
+            Mockery::mock(ActionExecutor::class)
+        );
+
+        $response = $controller->changelog($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(Post::class, $payload['model']);
+        $this->assertSame([], $payload['versions']);
+        $this->assertNull($payload['default']);
+    }
 }
 
 
