@@ -1,6 +1,3 @@
-- Se `status()` retornar `null`, o status padrão continua sendo `200 OK` (ou o que a implementação interna já utilizava).
-
-Com um alias configurado (`->alias('users')`), uma ação chamada `refund` ficará disponível em `POST /query/users/refund` (ou no endpoint canônico `POST /query?model=App\Models\User&action=refund`). Se precisar de outro verbo HTTP, basta retornar `DELETE`, `PATCH` etc. em `method()`.
 # Query Gate
 
 Query Gate offers a single HTTP entrypoint that turns incoming query parameters into Eloquent queries. It delegates business rules to the host application through closures and middleware so you can expose data in a controlled, explicit, and testable way.
@@ -331,7 +328,7 @@ When you need to take over the actual query logic, pair the whitelist with `->ra
 
 Use `->select(['created_at', 'posts.title'])` to limit which attributes are selected and serialized. Query Gate automatically keeps primary and foreign keys required to hydrate relations. Relation selections currently support a single relation depth (e.g. `posts.title`).
 
-## Actions (Create/Update/Delete)
+## Actions
 
 Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`) can be customised:
 
@@ -363,9 +360,11 @@ Omitting the callback keeps the default behaviour for that action.
 )
 ```
 
+Inside the callback you receive an `ActionsBuilder` instance, so you can continue to call `->validations()`, `->policy()`, `->authorize()`, or `->handle()` exactly as before.
+
 #### Class-based actions
 
-When a closure grows too large, extract it into a dedicated action class. Implement the `QueryGateAction` contract (or extend the helper `AbstractQueryGateAction`) and register it with `->use()`:
+When the logic no longer fits nicely inside a closure, extract it to a dedicated action class. Implement the `QueryGateAction` contract (or extend the helper `AbstractQueryGateAction`) and register it with `->use()`:
 
 ```php
 use App\Actions\QueryGate\DoPayment;
@@ -389,7 +388,12 @@ class DoPayment extends AbstractQueryGateAction
 {
     public function action(): string
     {
-        return 'create';
+        return 'refund';
+    }
+
+    public function method(): string
+    {
+        return 'POST';
     }
 
     /**
@@ -425,18 +429,18 @@ class DoPayment extends AbstractQueryGateAction
 }
 ```
 
-- `handle()` é obrigatório. Se ele retornar um `Response`/`Responsable`, Query Gate utiliza a resposta como está. Caso contrário, o pacote devolve o resultado como JSON quando o cliente esperar JSON. Defina `status()` para sobrepor o status HTTP padrão (ex.: `202 Accepted`).
-- `method()` permite trocar o verbo HTTP exigido pela ação (padrão `POST`). O pacote registra automaticamente uma rota no formato `/{alias}/{action}` respeitando esse método (e também permite usar `action=refund` via query string).
-- `validations()`, `authorize()` e `policy()` são hooks opcionais, equivalentes ao que o `ActionsBuilder` já fornecia.
-- Se `status()` retornar `null`, o status padrão continua sendo `200 OK` (ou o que a implementação interna já utilizava).
+- `handle()` is mandatory. Returning a `Response`/`Responsable` short-circuits the serializer; any other value is wrapped in JSON when the client expects JSON. Use `status()` to override the default HTTP status (for example `202 Accepted`).
+- `method()` lets you pick the HTTP verb required to trigger the action (defaults to `POST`). When an alias is configured, Query Gate exposes a route such as `/{alias}/{action}` that honours the declared verb (e.g. `POST /query/users/refund`). The canonical query-string endpoint (`POST /query?model=App\Models\User&action=refund`) remains available for non-aliased access.
+- `validations()`, `authorize()`, and `policy()` remain optional hooks identical to the ones provided by `ActionsBuilder`.
+- If `status()` returns `null`, the package falls back to the default status code (`200 OK`, or the specific value used by the built-in handlers).
 
-Crie novas ações rapidamente com:
+Generate a new action class with:
 
 ```bash
 php artisan qg:action DoPayment
 ```
 
-O comando gera `app/Actions/QueryGate/DoPayment.php` com todos os métodos opcionais documentados.
+The command creates `app/Actions/QueryGate/DoPayment.php` with all optional methods scaffolded so you can pick the ones you need.
 
 ### Endpoints
 
