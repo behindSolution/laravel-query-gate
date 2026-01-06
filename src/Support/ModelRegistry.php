@@ -92,7 +92,15 @@ class ModelRegistry
             ));
         }
 
-        $definition = $this->normalizeDefinition($class, $value);
+        try {
+            $definition = $this->normalizeDefinition($class, $value);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException(sprintf(
+                'Invalid Query Gate configuration for [%s]: %s',
+                $class,
+                $exception->getMessage()
+            ), 0, $exception);
+        }
 
         return [$class, $definition];
     }

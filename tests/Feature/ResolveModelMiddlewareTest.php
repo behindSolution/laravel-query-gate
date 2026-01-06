@@ -192,6 +192,138 @@ class ResolveModelMiddlewareTest extends TestCase
         $this->assertNotNull($request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_BUILDER));
         $this->assertSame(204, $response->getStatusCode());
     }
+
+    public function testAppliesLatestVersionWhenNoVersionIsRequested(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->version('2024-01-01', function (QueryGate $gate) {
+                $gate->select(['id']);
+            })
+            ->version('2024-11-01', function (QueryGate $gate) {
+                $gate->select(['id', 'title']);
+            })
+        );
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $middleware->handle($request, static function () {
+            return response()->noContent();
+        });
+
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION);
+        $versions = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_VERSIONS);
+
+        $this->assertSame(['id', 'title'], $configuration['select']);
+        $this->assertSame('2024-11-01', $configuration['active_version']);
+        $this->assertIsArray($versions);
+        $this->assertSame('2024-11-01', $versions['default']);
+    }
+
+    public function testUsesVersionProvidedByHeader(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->version('2024-01-01', function (QueryGate $gate) {
+                $gate->select(['id']);
+            })
+            ->version('2024-11-01', function (QueryGate $gate) {
+                $gate->select(['id', 'title']);
+            })
+        );
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+            'version' => '2024-11-01',
+        ]);
+        $request->headers->set('X-Query-Version', '2024-01-01');
+
+        $middleware->handle($request, static function () {
+            return response()->noContent();
+        });
+
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION);
+
+        $this->assertSame(['id'], $configuration['select']);
+        $this->assertSame('2024-01-01', $configuration['active_version']);
+    }
+
+    public function testFallsBackToQueryParameterWhenHeaderIsMissing(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->version('2024-01-01', function (QueryGate $gate) {
+                $gate->select(['id']);
+            })
+            ->version('2024-11-01', function (QueryGate $gate) {
+                $gate->select(['id', 'title']);
+            })
+        );
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+            'version' => '2024-01-01',
+        ]);
+
+        $middleware->handle($request, static function () {
+            return response()->noContent();
+        });
+
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION);
+
+        $this->assertSame(['id'], $configuration['select']);
+        $this->assertSame('2024-01-01', $configuration['active_version']);
+    }
+
+    public function testThrowsWhenRequestedVersionDoesNotExist(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->version('2024-11-01', function (QueryGate $gate) {
+                $gate->select(['id', 'title']);
+            })
+        );
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+        $request->headers->set('X-Query-Version', '2024-01-01');
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Version "2024-01-01" is not available for this resource.');
+
+        $middleware->handle($request, static function () {
+            return response()->noContent();
+        });
+    }
+
+    public function testThrowsWhenModelIsRegisteredWithoutQueryGateMethod(): void
+    {
+        config()->set('query-gate.models', [
+            Post::class,
+        ]);
+
+        $middleware = app(ResolveModelMiddleware::class);
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage(sprintf(
+            'Model [%s] must define a static queryGate() method. Use the HasQueryGate trait or provide a custom implementation.',
+            Post::class
+        ));
+
+        $middleware->handle($request, static function () {
+            return response()->noContent();
+        });
+    }
 }
 
 
