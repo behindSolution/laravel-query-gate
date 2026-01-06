@@ -58,7 +58,7 @@ class QueryGateController
         return $this->executeAction($request, 'delete', $id);
     }
 
-    public function action(Request $request, string $action)
+    public function action(Request $request, string $model, string $action)
     {
         return $this->executeAction($request, $action);
     }
