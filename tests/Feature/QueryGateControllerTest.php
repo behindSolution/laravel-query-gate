@@ -78,7 +78,7 @@ class QueryGateControllerTest extends TestCase
                 'actions' => [
                     'create' => [],
                 ],
-            ])
+            ], null)
             ->andReturn(['created' => true]);
 
         $controller = new QueryGateController($executor, $actionExecutor);

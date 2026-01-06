@@ -48,13 +48,17 @@ class QueryGateBuilderTest extends TestCase
 
         $this->assertSame(
             [
+                'method' => 'POST',
                 'validation' => ['title' => ['required']],
                 'policy' => ['create'],
             ],
             $configuration['actions']['create']
         );
         $this->assertSame(
-            ['policy' => ['delete', 'forceDelete']],
+            [
+                'method' => 'DELETE',
+                'policy' => ['delete', 'forceDelete'],
+            ],
             $configuration['actions']['delete']
         );
 

@@ -1,0 +1,28 @@
+<?php
+
+namespace BehindSolution\LaravelQueryGate\Tests\Stubs\Actions;
+
+use BehindSolution\LaravelQueryGate\Actions\AbstractQueryGateAction;
+
+class PublishPostAction extends AbstractQueryGateAction
+{
+    public function action(): string
+    {
+        return 'publish';
+    }
+
+    public function method(): string
+    {
+        return 'POST';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    public function handle($request, $model, array $payload)
+    {
+        return [
+            'published' => true,
+        ];
+    }
+}

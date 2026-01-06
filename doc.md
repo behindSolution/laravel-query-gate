@@ -1,3 +1,6 @@
+- Se `status()` retornar `null`, o status padrão continua sendo `200 OK` (ou o que a implementação interna já utilizava).
+
+Com um alias configurado (`->alias('users')`), uma ação chamada `refund` ficará disponível em `POST /query/users/refund` (ou no endpoint canônico `POST /query?model=App\Models\User&action=refund`). Se precisar de outro verbo HTTP, basta retornar `DELETE`, `PATCH` etc. em `method()`.
 # Query Gate
 
 Query Gate offers a single HTTP entrypoint that turns incoming query parameters into Eloquent queries. It delegates business rules to the host application through closures and middleware so you can expose data in a controlled, explicit, and testable way.
@@ -359,6 +362,81 @@ Omitting the callback keeps the default behaviour for that action.
     ->delete(fn ($action) => $action->policy('delete'))
 )
 ```
+
+#### Class-based actions
+
+When a closure grows too large, extract it into a dedicated action class. Implement the `QueryGateAction` contract (or extend the helper `AbstractQueryGateAction`) and register it with `->use()`:
+
+```php
+use App\Actions\QueryGate\DoPayment;
+use App\Actions\QueryGate\RefundPayment;
+
+QueryGate::make()
+    ->actions(fn ($actions) => $actions
+        ->use(DoPayment::class)
+        ->use(RefundPayment::class)
+    );
+```
+
+An example action class:
+
+```php
+namespace App\Actions\QueryGate;
+
+use BehindSolution\LaravelQueryGate\Actions\AbstractQueryGateAction;
+
+class DoPayment extends AbstractQueryGateAction
+{
+    public function action(): string
+    {
+        return 'create';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return mixed
+     */
+    public function handle($request, $model, array $payload)
+    {
+        $payment = app(ProcessPayment::class)($model, $payload);
+
+        return [
+            'payment_id' => $payment->id,
+            'status' => $payment->status,
+        ];
+    }
+
+    public function status(): ?int
+    {
+        return 202;
+    }
+
+    public function validations(): array
+    {
+        return [
+            'amount' => ['required', 'numeric', 'min:1'],
+        ];
+    }
+
+    public function authorize($request, $model): ?bool
+    {
+        return $request->user()?->can('pay', $model);
+    }
+}
+```
+
+- `handle()` é obrigatório. Se ele retornar um `Response`/`Responsable`, Query Gate utiliza a resposta como está. Caso contrário, o pacote devolve o resultado como JSON quando o cliente esperar JSON. Defina `status()` para sobrepor o status HTTP padrão (ex.: `202 Accepted`).
+- `method()` permite trocar o verbo HTTP exigido pela ação (padrão `POST`). O pacote registra automaticamente uma rota no formato `/{alias}/{action}` respeitando esse método (e também permite usar `action=refund` via query string).
+- `validations()`, `authorize()` e `policy()` são hooks opcionais, equivalentes ao que o `ActionsBuilder` já fornecia.
+- Se `status()` retornar `null`, o status padrão continua sendo `200 OK` (ou o que a implementação interna já utilizava).
+
+Crie novas ações rapidamente com:
+
+```bash
+php artisan qg:action DoPayment
+```
+
+O comando gera `app/Actions/QueryGate/DoPayment.php` com todos os métodos opcionais documentados.
 
 ### Endpoints
 

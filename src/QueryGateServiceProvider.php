@@ -2,6 +2,7 @@
 
 namespace BehindSolution\LaravelQueryGate;
 
+use BehindSolution\LaravelQueryGate\Console\MakeQueryGateActionCommand;
 use BehindSolution\LaravelQueryGate\Console\OpenAPICommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
 use BehindSolution\LaravelQueryGate\Http\Controllers\OpenAPIController;
@@ -63,6 +64,13 @@ class QueryGateServiceProvider extends ServiceProvider
 
                 Route::post('/', [QueryGateController::class, 'store'])
                     ->name('query-gate.store');
+
+                Route::match(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{model}/{action}', [QueryGateController::class, 'action'])
+                    ->where([
+                        'model' => '[^/]+',
+                        'action' => '[A-Za-z][A-Za-z0-9\-_]*',
+                    ])
+                    ->name('query-gate.action');
 
                 Route::get('{model}', [QueryGateController::class, 'index'])
                     ->where('model', '[^/]+')
@@ -152,6 +160,7 @@ class QueryGateServiceProvider extends ServiceProvider
         }
 
         $this->commands([
+            MakeQueryGateActionCommand::class,
             OpenAPICommand::class,
         ]);
     }
