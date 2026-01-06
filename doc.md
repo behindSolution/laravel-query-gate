@@ -114,6 +114,67 @@ With the trait in place, the configuration can simply list `User::class`:
 ];
 ```
 
+### Versioning your definitions
+
+Use `->version($identifier, $callback)` to keep backwards compatibility while iterating on filters, operators, or projected columns. Each version snapshot is independent; Query Gate automatically serves the latest one unless the client explicitly selects another via the `X-Query-Version` header (or legacy `version` query parameter). A changelog is always generated and available at `GET /query/{alias}/__changelog`.
+
+```php
+QueryGate::make()
+    ->alias('users')
+    ->version('2024-01-01', function (QueryGate $gate) {
+        $gate->filters([
+            'name' => 'string',
+            'email' => 'email',
+        ])->allowedFilters([
+            'name' => ['like'],
+            'email' => ['eq'],
+        ])->select(['id', 'name', 'email']);
+    })
+    ->version('2024-11-01', function (QueryGate $gate) {
+        $gate->filters([
+            'name' => 'string',
+            'email' => 'email',
+            'created_at' => 'date',
+        ])->allowedFilters([
+            'name' => ['like'],
+            'email' => ['eq', 'like'],
+            'created_at' => ['gte', 'lte', 'between'],
+        ])->select(['id', 'name', 'email', 'created_at']);
+    });
+```
+
+Clients can opt into a specific snapshot:
+
+```
+GET /query/users
+X-Query-Version: 2024-01-01
+```
+
+If the header is missing, Query Gate falls back to the latest version (`2024-11-01` in the example above). The changelog endpoint returns a chronological diff so consumers know what changed:
+
+```json
+{
+  "model": "App\\Models\\User",
+  "alias": "users",
+  "default": "2024-11-01",
+  "active": "2024-11-01",
+  "versions": [
+    {
+      "version": "2024-01-01",
+      "changes": []
+    },
+    {
+      "version": "2024-11-01",
+      "changes": [
+        "Added filter: created_at",
+        "Added operator: email.like",
+        "Added select: created_at"
+      ]
+    }
+  ]
+}
+```
+
 ### OpenAPI
 
 Query Gate can export an OpenAPI document representing every configured model. Adjust the `openAPI` section in `config/query-gate.php` to control metadata, output path, server list, and authentication:
