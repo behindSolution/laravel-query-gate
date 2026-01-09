@@ -5,10 +5,13 @@ namespace BehindSolution\LaravelQueryGate\Actions;
 use BehindSolution\LaravelQueryGate\Support\CacheRegistry;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ActionExecutor
@@ -26,6 +29,8 @@ class ActionExecutor
     ) {
         $actionConfiguration = $this->resolveActionConfiguration($configuration, $action);
 
+        $this->ensureRequestMethod($request, $actionConfiguration, $action);
+
         $model = $this->resolveModelInstance(
             $action,
             $request,
@@ -40,15 +45,17 @@ class ActionExecutor
 
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
             $result = $actionConfiguration['handle']($request, $model, $payload);
-        } else {
+        } elseif (in_array($action, ['create', 'update', 'delete'], true)) {
             $result = $this->defaultHandle($action, $request, $model, $payload);
+        } else {
+            throw new HttpException(500, sprintf('No handler defined for action "%s".', $action));
         }
 
         if (in_array($action, ['create', 'update', 'delete'], true)) {
             $this->flushCache($modelClass, $configuration);
         }
 
-        return $result;
+        return $this->formatResult($result, $actionConfiguration, $request);
     }
 
     /**
@@ -90,6 +97,10 @@ class ActionExecutor
         $instance = app($modelClass);
 
         if ($action === 'create') {
+            return $instance;
+        }
+
+        if (!in_array($action, ['update', 'delete'], true)) {
             return $instance;
         }
 
@@ -248,6 +259,67 @@ class ActionExecutor
         }
 
         return $builder;
+    }
+
+    /**
+     * @param mixed $result
+     * @return mixed
+     */
+    protected function formatResult($result, array $actionConfiguration, Request $request)
+    {
+        if ($result instanceof SymfonyResponse) {
+            return $result;
+        }
+
+        if ($result instanceof Responsable) {
+            return $result->toResponse($request);
+        }
+
+        if (!isset($actionConfiguration['status'])) {
+            return $result;
+        }
+
+        $status = (int) $actionConfiguration['status'];
+
+        if ($request->expectsJson() || $request->wantsJson() || is_array($result) || $result instanceof Arrayable) {
+            if ($result instanceof Arrayable) {
+                $result = $result->toArray();
+            }
+
+            return response()->json($result, $status);
+        }
+
+        if (is_string($result) || is_numeric($result) || $result === null) {
+            return response($result ?? '', $status);
+        }
+
+        return $result;
+    }
+
+    protected function ensureRequestMethod(Request $request, array $actionConfiguration, string $action): void
+    {
+        $expected = strtoupper($actionConfiguration['method'] ?? $this->defaultMethodFor($action));
+        $actual = strtoupper($request->getMethod());
+
+        if ($expected !== $actual) {
+            throw new HttpException(405, sprintf(
+                'Action "%s" must be invoked using the %s method.',
+                $action,
+                $expected
+            ));
+        }
+    }
+
+    protected function defaultMethodFor(string $action): string
+    {
+        $action = strtolower($action);
+
+        return match ($action) {
+            'create' => 'POST',
+            'update' => 'PATCH',
+            'delete' => 'DELETE',
+            default => 'POST',
+        };
     }
 }
 

@@ -18,6 +18,12 @@ class ActionDefinition implements Arrayable
 
     protected ?Closure $handle = null;
 
+    protected ?int $status = null;
+
+    protected ?string $name = null;
+
+    protected ?string $method = null;
+
     public function validations(array $rules): self
     {
         $this->validation = $rules;
@@ -62,6 +68,37 @@ class ActionDefinition implements Arrayable
         return $this;
     }
 
+    public function status(?int $status): self
+    {
+        if ($status !== null && ($status < 100 || $status > 599)) {
+            throw new \InvalidArgumentException('Status code must be between 100 and 599.');
+        }
+
+        $this->status = $status;
+
+        return $this;
+    }
+
+    public function method(string $method): self
+    {
+        $method = strtoupper(trim($method));
+
+        if ($method === '') {
+            throw new \InvalidArgumentException('HTTP method cannot be empty.');
+        }
+
+        $this->method = $method;
+
+        return $this;
+    }
+
+    public function name(?string $name): self
+    {
+        $this->name = $name !== null && $name !== '' ? $name : null;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         return array_filter([
@@ -69,6 +106,9 @@ class ActionDefinition implements Arrayable
             'authorize' => $this->authorize,
             'policy' => $this->policies === [] ? null : $this->policies,
             'handle' => $this->handle,
+            'status' => $this->status,
+            'name' => $this->name,
+            'method' => $this->method,
         ], static function ($value) {
             return $value !== null;
         });

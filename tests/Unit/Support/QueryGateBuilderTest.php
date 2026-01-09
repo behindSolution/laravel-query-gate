@@ -3,6 +3,7 @@
 namespace BehindSolution\LaravelQueryGate\Tests\Unit\Support;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\PublishPostAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use InvalidArgumentException;
 
@@ -48,13 +49,17 @@ class QueryGateBuilderTest extends TestCase
 
         $this->assertSame(
             [
+                'method' => 'POST',
                 'validation' => ['title' => ['required']],
                 'policy' => ['create'],
             ],
             $configuration['actions']['create']
         );
         $this->assertSame(
-            ['policy' => ['delete', 'forceDelete']],
+            [
+                'method' => 'DELETE',
+                'policy' => ['delete', 'forceDelete'],
+            ],
             $configuration['actions']['delete']
         );
 
@@ -131,6 +136,24 @@ class QueryGateBuilderTest extends TestCase
             ],
             $configuration['cache']
         );
+    }
+
+    public function testVersionCarriesActions(): void
+    {
+        $configuration = QueryGate::make()
+            ->version('2024-11-01', fn ($builder) => $builder
+                ->actions(fn ($actions) => $actions->use(PublishPostAction::class))
+            )
+            ->toArray();
+
+        $this->assertArrayHasKey('actions', $configuration);
+        $this->assertArrayHasKey('publish', $configuration['actions']);
+        $this->assertSame(PublishPostAction::class, $configuration['actions']['publish']['class']);
+        $this->assertSame('POST', $configuration['actions']['publish']['method']);
+
+        $definitions = $configuration['versions']['definitions']['2024-11-01'] ?? [];
+        $this->assertArrayHasKey('actions', $definitions);
+        $this->assertArrayHasKey('publish', $definitions['actions']);
     }
 }
 

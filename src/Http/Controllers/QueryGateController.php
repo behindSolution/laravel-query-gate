@@ -33,23 +33,34 @@ class QueryGateController
 
     public function store(Request $request)
     {
-        [$model, $configuration] = $this->resolveActionContext($request);
+        if ($custom = $this->resolveRequestedAction($request, 'create')) {
+            return $this->executeAction($request, $custom);
+        }
 
-        return $this->actionExecutor->execute('create', $request, $model, $configuration);
+        return $this->executeAction($request, 'create');
     }
 
     public function update(Request $request, string $id)
     {
-        [$model, $configuration] = $this->resolveActionContext($request);
+        if ($custom = $this->resolveRequestedAction($request, 'update')) {
+            return $this->executeAction($request, $custom, $id);
+        }
 
-        return $this->actionExecutor->execute('update', $request, $model, $configuration, $id);
+        return $this->executeAction($request, 'update', $id);
     }
 
     public function destroy(Request $request, string $id)
     {
-        [$model, $configuration] = $this->resolveActionContext($request);
+        if ($custom = $this->resolveRequestedAction($request, 'delete')) {
+            return $this->executeAction($request, $custom, $id);
+        }
 
-        return $this->actionExecutor->execute('delete', $request, $model, $configuration, $id);
+        return $this->executeAction($request, 'delete', $id);
+    }
+
+    public function action(Request $request, string $model, string $action)
+    {
+        return $this->executeAction($request, $action);
     }
 
     public function changelog(Request $request)
@@ -126,6 +137,34 @@ class QueryGateController
         }
 
         return [$model, is_array($configuration) ? $configuration : []];
+    }
+
+    protected function executeAction(Request $request, string $action, ?string $identifier = null)
+    {
+        [$model, $configuration] = $this->resolveActionContext($request);
+
+        return $this->actionExecutor->execute($action, $request, $model, $configuration, $identifier);
+    }
+
+    protected function resolveRequestedAction(Request $request, ?string $default = null): ?string
+    {
+        $action = $request->query('action');
+
+        if (!is_string($action)) {
+            return null;
+        }
+
+        $action = trim($action);
+
+        if ($action === '') {
+            return null;
+        }
+
+        if ($default !== null && strcasecmp($action, $default) === 0) {
+            return null;
+        }
+
+        return $action;
     }
 }
 

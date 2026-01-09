@@ -98,10 +98,6 @@ class QueryGate implements Arrayable
 
     public function actions(callable $callback): self
     {
-        if ($this->isVersion) {
-            throw new InvalidArgumentException('Actions must be defined at the root level, outside of version blocks.');
-        }
-
         $builder = new ActionsBuilder();
         $result = $callback($builder);
 
@@ -315,6 +311,14 @@ class QueryGate implements Arrayable
 
         if ($this->sorts !== []) {
             $definition['sorts'] = $this->sorts;
+        }
+
+        if ($this->actions !== null) {
+            $actions = $this->actions->toArray();
+
+            if ($actions !== []) {
+                $definition['actions'] = $actions;
+            }
         }
 
         return $definition;

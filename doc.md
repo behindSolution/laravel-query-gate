@@ -328,7 +328,7 @@ When you need to take over the actual query logic, pair the whitelist with `->ra
 
 Use `->select(['created_at', 'posts.title'])` to limit which attributes are selected and serialized. Query Gate automatically keeps primary and foreign keys required to hydrate relations. Relation selections currently support a single relation depth (e.g. `posts.title`).
 
-## Actions (Create/Update/Delete)
+## Actions
 
 Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`) can be customised:
 
@@ -359,6 +359,88 @@ Omitting the callback keeps the default behaviour for that action.
     ->delete(fn ($action) => $action->policy('delete'))
 )
 ```
+
+Inside the callback you receive an `ActionsBuilder` instance, so you can continue to call `->validations()`, `->policy()`, `->authorize()`, or `->handle()` exactly as before.
+
+#### Class-based actions
+
+When the logic no longer fits nicely inside a closure, extract it to a dedicated action class. Implement the `QueryGateAction` contract (or extend the helper `AbstractQueryGateAction`) and register it with `->use()`:
+
+```php
+use App\Actions\QueryGate\DoPayment;
+use App\Actions\QueryGate\RefundPayment;
+
+QueryGate::make()
+    ->actions(fn ($actions) => $actions
+        ->use(DoPayment::class)
+        ->use(RefundPayment::class)
+    );
+```
+
+An example action class:
+
+```php
+namespace App\Actions\QueryGate;
+
+use BehindSolution\LaravelQueryGate\Actions\AbstractQueryGateAction;
+
+class DoPayment extends AbstractQueryGateAction
+{
+    public function action(): string
+    {
+        return 'refund';
+    }
+
+    public function method(): string
+    {
+        return 'POST';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return mixed
+     */
+    public function handle($request, $model, array $payload)
+    {
+        $payment = app(ProcessPayment::class)($model, $payload);
+
+        return [
+            'payment_id' => $payment->id,
+            'status' => $payment->status,
+        ];
+    }
+
+    public function status(): ?int
+    {
+        return 202;
+    }
+
+    public function validations(): array
+    {
+        return [
+            'amount' => ['required', 'numeric', 'min:1'],
+        ];
+    }
+
+    public function authorize($request, $model): ?bool
+    {
+        return $request->user()?->can('pay', $model);
+    }
+}
+```
+
+- `handle()` is mandatory. Returning a `Response`/`Responsable` short-circuits the serializer; any other value is wrapped in JSON when the client expects JSON. Use `status()` to override the default HTTP status (for example `202 Accepted`).
+- `method()` lets you pick the HTTP verb required to trigger the action (defaults to `POST`). When an alias is configured, Query Gate exposes a route such as `/{alias}/{action}` that honours the declared verb (e.g. `POST /query/users/refund`). The canonical query-string endpoint (`POST /query?model=App\Models\User&action=refund`) remains available for non-aliased access.
+- `validations()`, `authorize()`, and `policy()` remain optional hooks identical to the ones provided by `ActionsBuilder`.
+- If `status()` returns `null`, the package falls back to the default status code (`200 OK`, or the specific value used by the built-in handlers).
+
+Generate a new action class with:
+
+```bash
+php artisan qg:action DoPayment
+```
+
+The command creates `app/Actions/QueryGate/DoPayment.php` with all optional methods scaffolded so you can pick the ones you need.
 
 ### Endpoints
 

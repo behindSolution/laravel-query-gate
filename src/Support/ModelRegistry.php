@@ -93,7 +93,7 @@ class ModelRegistry
         }
 
         try {
-            $definition = $this->normalizeDefinition($class, $value);
+        $definition = $this->normalizeDefinition($class, $value);
         } catch (InvalidArgumentException $exception) {
             throw new InvalidArgumentException(sprintf(
                 'Invalid Query Gate configuration for [%s]: %s',
