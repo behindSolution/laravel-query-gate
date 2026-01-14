@@ -84,4 +84,104 @@ class ActionExecutorTest extends TestCase
 
         $this->assertSame(['archived' => true], $result);
     }
+
+    public function testThrowsWhenCreateActionHasNoValidation(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->create())
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Test',
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The "create" action requires validation rules.');
+
+        $executor->execute('create', $request, Post::class, $definition);
+    }
+
+    public function testThrowsWhenUpdateActionHasNoValidation(): void
+    {
+        $post = Post::create(['title' => 'Original']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->update())
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'PATCH', [
+            'title' => 'Updated',
+        ]);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('The "update" action requires validation rules.');
+
+        $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
+    }
+
+    public function testDeleteActionWorksWithoutValidation(): void
+    {
+        $post = Post::create(['title' => 'To Delete']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->delete())
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'DELETE');
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('delete', $request, Post::class, $definition, (string) $post->id);
+
+        $this->assertInstanceOf(\Illuminate\Http\JsonResponse::class, $result);
+        $this->assertSame(['deleted' => true], $result->getData(true));
+    }
+
+    public function testCreateWithCustomHandlerWorksWithoutValidation(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->use(CreatePostAction::class))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Custom Handler',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(\Illuminate\Http\JsonResponse::class, $result);
+        $this->assertSame(202, $result->getStatusCode());
+    }
+
+    public function testCreateWithValidationWorks(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Valid Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(Post::class, $result);
+        $this->assertSame('Valid Title', $result->title);
+    }
 }

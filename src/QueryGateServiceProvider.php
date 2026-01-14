@@ -65,13 +65,6 @@ class QueryGateServiceProvider extends ServiceProvider
                 Route::post('/', [QueryGateController::class, 'store'])
                     ->name('query-gate.store');
 
-                Route::match(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{model}/{action}', [QueryGateController::class, 'action'])
-                    ->where([
-                        'model' => '[^/]+',
-                        'action' => '[A-Za-z][A-Za-z0-9\-_]*',
-                    ])
-                    ->name('query-gate.action');
-
                 Route::get('{model}', [QueryGateController::class, 'index'])
                     ->where('model', '[^/]+')
                     ->name('query-gate.model.index');
@@ -80,13 +73,26 @@ class QueryGateServiceProvider extends ServiceProvider
                     ->where('model', '[^/]+')
                     ->name('query-gate.model.store');
 
-                Route::patch('{model}/{id}', [QueryGateController::class, 'update'])
-                    ->where('model', '[^/]+')
-                    ->name('query-gate.model.update');
+                Route::match(['GET', 'POST', 'PUT', 'OPTIONS'], '{model}/{action}', [QueryGateController::class, 'action'])
+                    ->where([
+                        'model' => '[^/]+',
+                        'action' => '[A-Za-z][A-Za-z0-9\-_]*',
+                    ])
+                    ->name('query-gate.action');
 
-                Route::delete('{model}/{id}', [QueryGateController::class, 'destroy'])
-                    ->where('model', '[^/]+')
-                    ->name('query-gate.model.destroy');
+                Route::patch('{model}/{param}', [QueryGateController::class, 'patchOrAction'])
+                    ->where([
+                        'model' => '[^/]+',
+                        'param' => '[^/]+',
+                    ])
+                    ->name('query-gate.model.patch');
+
+                Route::delete('{model}/{param}', [QueryGateController::class, 'deleteOrAction'])
+                    ->where([
+                        'model' => '[^/]+',
+                        'param' => '[^/]+',
+                    ])
+                    ->name('query-gate.model.delete');
 
                 Route::patch('/{id}', [QueryGateController::class, 'update'])
                     ->name('query-gate.update');
