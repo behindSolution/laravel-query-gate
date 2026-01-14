@@ -328,6 +328,54 @@ class ResolveModelMiddlewareTest extends TestCase
             ),
         ], $response->getData(true));
     }
+
+    public function testResolvesModelFromRequestBody(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()->alias('posts'));
+
+        $middleware = app(ResolveModelMiddleware::class);
+
+        $request = Request::create('/query', 'PATCH', [], [], [], [], json_encode([
+            'model' => 'posts',
+            'title' => 'Updated Title',
+        ]));
+        $request->headers->set('Content-Type', 'application/json');
+
+        $dispatched = false;
+        $response = $middleware->handle($request, static function ($handledRequest) use (&$dispatched) {
+            $dispatched = true;
+
+            return response()->noContent();
+        });
+
+        $this->assertTrue($dispatched);
+        $this->assertSame(Post::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertSame(204, $response->getStatusCode());
+    }
+
+    public function testResolvesModelNamespaceFromRequestBody(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()->alias('posts'));
+
+        $middleware = app(ResolveModelMiddleware::class);
+
+        $request = Request::create('/query', 'PATCH', [], [], [], [], json_encode([
+            'model' => Post::class,
+            'title' => 'Updated Title',
+        ]));
+        $request->headers->set('Content-Type', 'application/json');
+
+        $dispatched = false;
+        $response = $middleware->handle($request, static function ($handledRequest) use (&$dispatched) {
+            $dispatched = true;
+
+            return response()->noContent();
+        });
+
+        $this->assertTrue($dispatched);
+        $this->assertSame(Post::class, $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_MODEL));
+        $this->assertSame(204, $response->getStatusCode());
+    }
 }
 
 

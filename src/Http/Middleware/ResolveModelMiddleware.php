@@ -106,6 +106,10 @@ class ResolveModelMiddleware
         }
 
         if (!is_string($model) || trim($model) === '') {
+            $model = $request->input('model');
+        }
+
+        if (!is_string($model) || trim($model) === '') {
             throw new HttpException(400, 'The model parameter is required.');
         }
 

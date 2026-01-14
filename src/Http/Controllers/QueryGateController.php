@@ -58,6 +58,24 @@ class QueryGateController
         return $this->executeAction($request, 'delete', $id);
     }
 
+    public function patchOrAction(Request $request, string $param)
+    {
+        if ($this->isRegisteredAction($request, $param)) {
+            return $this->executeAction($request, $param);
+        }
+
+        return $this->update($request, $param);
+    }
+
+    public function deleteOrAction(Request $request, string $param)
+    {
+        if ($this->isRegisteredAction($request, $param)) {
+            return $this->executeAction($request, $param);
+        }
+
+        return $this->destroy($request, $param);
+    }
+
     public function action(Request $request, string $model, string $action)
     {
         return $this->executeAction($request, $action);
@@ -165,6 +183,22 @@ class QueryGateController
         }
 
         return $action;
+    }
+
+    protected function isRegisteredAction(Request $request, string $param): bool
+    {
+        if (in_array($param, ['create', 'update', 'delete'], true)) {
+            return false;
+        }
+
+        $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, []);
+        $actions = $configuration['actions'] ?? [];
+
+        if (!is_array($actions)) {
+            return false;
+        }
+
+        return array_key_exists($param, $actions);
     }
 }
 

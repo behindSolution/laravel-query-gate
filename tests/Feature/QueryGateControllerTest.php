@@ -224,6 +224,174 @@ class QueryGateControllerTest extends TestCase
         $this->assertSame([], $payload['versions']);
         $this->assertNull($payload['default']);
     }
+
+    public function testPatchOrActionTreatsUuidAsIdentifier(): void
+    {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
+
+        $request = Request::create("/query/posts/{$uuid}", 'PATCH', [
+            'title' => 'Updated',
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'update' => [],
+                'custom-action' => [],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('update', $request, Post::class, Mockery::any(), $uuid)
+            ->andReturn(['updated' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->patchOrAction($request, $uuid);
+
+        $this->assertSame(['updated' => true], $result);
+    }
+
+    public function testPatchOrActionExecutesRegisteredCustomAction(): void
+    {
+        $request = Request::create('/query/posts/publish', 'PATCH');
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'update' => [],
+                'publish' => ['method' => 'PATCH'],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('publish', $request, Post::class, Mockery::any(), null)
+            ->andReturn(['published' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->patchOrAction($request, 'publish');
+
+        $this->assertSame(['published' => true], $result);
+    }
+
+    public function testPatchOrActionTreatsNumericIdAsIdentifier(): void
+    {
+        $request = Request::create('/query/posts/42', 'PATCH', [
+            'title' => 'Updated',
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'update' => [],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('update', $request, Post::class, Mockery::any(), '42')
+            ->andReturn(['updated' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->patchOrAction($request, '42');
+
+        $this->assertSame(['updated' => true], $result);
+    }
+
+    public function testDeleteOrActionTreatsUuidAsIdentifier(): void
+    {
+        $uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+
+        $request = Request::create("/query/posts/{$uuid}", 'DELETE');
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'delete' => [],
+                'archive' => [],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('delete', $request, Post::class, Mockery::any(), $uuid)
+            ->andReturn(['deleted' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->deleteOrAction($request, $uuid);
+
+        $this->assertSame(['deleted' => true], $result);
+    }
+
+    public function testDeleteOrActionExecutesRegisteredCustomAction(): void
+    {
+        $request = Request::create('/query/posts/archive', 'DELETE');
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'delete' => [],
+                'archive' => ['method' => 'DELETE'],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('archive', $request, Post::class, Mockery::any(), null)
+            ->andReturn(['archived' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->deleteOrAction($request, 'archive');
+
+        $this->assertSame(['archived' => true], $result);
+    }
+
+    public function testPatchOrActionTreatsUnregisteredActionNameAsIdentifier(): void
+    {
+        $request = Request::create('/query/posts/unknown-action', 'PATCH');
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'actions' => [
+                'update' => [],
+            ],
+        ]);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+        $actionExecutor->shouldReceive('execute')
+            ->once()
+            ->with('update', $request, Post::class, Mockery::any(), 'unknown-action')
+            ->andReturn(['updated' => true]);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->patchOrAction($request, 'unknown-action');
+
+        $this->assertSame(['updated' => true], $result);
+    }
 }
 
 

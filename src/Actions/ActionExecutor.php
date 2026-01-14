@@ -39,7 +39,8 @@ class ActionExecutor
             $identifier
         );
 
-        $payload = $this->validatePayload($request, $actionConfiguration);
+        $hasCustomHandler = isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure;
+        $payload = $this->validatePayload($request, $actionConfiguration, $action, $hasCustomHandler);
 
         $this->ensureAuthorized($request, $model, $actionConfiguration, $action);
 
@@ -129,13 +130,31 @@ class ActionExecutor
     /**
      * @return array<string, mixed>
      */
-    protected function validatePayload(Request $request, array $actionConfiguration): array
+    protected function validatePayload(Request $request, array $actionConfiguration, string $action, bool $hasCustomHandler): array
     {
-        if (!isset($actionConfiguration['validation']) || !is_array($actionConfiguration['validation'])) {
+        $hasValidation = isset($actionConfiguration['validation']) && is_array($actionConfiguration['validation']);
+
+        if (!$hasValidation) {
+            $this->ensureValidationForDefaultActions($action, $hasCustomHandler);
+
             return $request->all();
         }
 
         return validator($request->all(), $actionConfiguration['validation'])->validate();
+    }
+
+    protected function ensureValidationForDefaultActions(string $action, bool $hasCustomHandler): void
+    {
+        if ($hasCustomHandler) {
+            return;
+        }
+
+        if (in_array($action, ['create', 'update'], true)) {
+            throw new HttpException(500, sprintf(
+                'The "%s" action requires validation rules. Use ->validation([...]) to define the allowed fields.',
+                $action
+            ));
+        }
     }
 
     protected function ensureAuthorized(Request $request, Model $model, array $actionConfiguration, string $action): void

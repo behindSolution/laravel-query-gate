@@ -20,15 +20,15 @@ class QueryGateServiceProviderTest extends TestCase
     public function testRegistersPrettyModelRoutes(): void
     {
         $indexRoute = Route::getRoutes()->getByName('query-gate.model.index');
-        $updateRoute = Route::getRoutes()->getByName('query-gate.model.update');
+        $patchRoute = Route::getRoutes()->getByName('query-gate.model.patch');
 
         $this->assertNotNull($indexRoute);
         $this->assertSame('query/{model}', $indexRoute->uri());
         $this->assertContains('GET', $indexRoute->methods());
 
-        $this->assertNotNull($updateRoute);
-        $this->assertSame('query/{model}/{id}', $updateRoute->uri());
-        $this->assertContains('PATCH', $updateRoute->methods());
+        $this->assertNotNull($patchRoute);
+        $this->assertSame('query/{model}/{param}', $patchRoute->uri());
+        $this->assertContains('PATCH', $patchRoute->methods());
     }
 
     public function testRegistersMiddlewareAlias(): void
