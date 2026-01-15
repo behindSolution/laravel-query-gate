@@ -24,6 +24,8 @@ class ActionDefinition implements Arrayable
 
     protected ?string $method = null;
 
+    protected bool $withoutQuery = false;
+
     public function validations(array $rules): self
     {
         $this->validation = $rules;
@@ -99,9 +101,16 @@ class ActionDefinition implements Arrayable
         return $this;
     }
 
+    public function withoutQuery(): self
+    {
+        $this->withoutQuery = true;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
-        return array_filter([
+        $data = array_filter([
             'validation' => $this->validation,
             'authorize' => $this->authorize,
             'policy' => $this->policies === [] ? null : $this->policies,
@@ -112,6 +121,12 @@ class ActionDefinition implements Arrayable
         ], static function ($value) {
             return $value !== null;
         });
+
+        if ($this->withoutQuery) {
+            $data['withoutQuery'] = true;
+        }
+
+        return $data;
     }
 }
 
