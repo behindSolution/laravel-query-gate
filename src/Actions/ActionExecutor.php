@@ -47,7 +47,7 @@ class ActionExecutor
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
             $result = $actionConfiguration['handle']($request, $model, $payload);
         } elseif (in_array($action, ['create', 'update', 'delete'], true)) {
-            $result = $this->defaultHandle($action, $request, $model, $payload);
+            $result = $this->defaultHandle($action, $request, $model, $payload, $configuration);
         } else {
             throw new HttpException(500, sprintf('No handler defined for action "%s".', $action));
         }
@@ -234,32 +234,44 @@ class ActionExecutor
 
     /**
      * @param array<string, mixed> $payload
+     * @param array<string, mixed> $configuration
      * @return mixed
      */
-    protected function defaultHandle(string $action, Request $request, Model $model, array $payload)
+    protected function defaultHandle(string $action, Request $request, Model $model, array $payload, array $configuration)
     {
         switch ($action) {
             case 'create':
                 $model->fill($payload);
                 $model->save();
 
-                return $model->refresh();
+                return $this->applySelectColumns($model->refresh(), $configuration);
             case 'update':
                 $model->fill($payload);
                 $model->save();
 
-                return $model;
+                return $this->applySelectColumns($model, $configuration);
             case 'delete':
-                $deleted = $model->delete();
-
-                if ($request->wantsJson()) {
-                    return response()->json(['deleted' => (bool) $deleted]);
-                }
+                $model->delete();
 
                 return response()->noContent();
             default:
                 return $model;
         }
+    }
+
+    /**
+     * @param array<string, mixed> $configuration
+     * @return array<string, mixed>
+     */
+    protected function applySelectColumns(Model $model, array $configuration): array
+    {
+        $select = $configuration['select'] ?? null;
+
+        if (!is_array($select) || $select === []) {
+            return $model->toArray();
+        }
+
+        return $model->only($select);
     }
 
     /**

@@ -42,8 +42,7 @@ class AliasWithCrudTest extends TestCase
 
         $response = $this->deleteJson("/query/posts/{$post->id}");
 
-        $response->assertStatus(200);
-        $response->assertJson(['deleted' => true]);
+        $response->assertNoContent();
         $this->assertNull(Post::find($post->id));
     }
 
@@ -119,8 +118,7 @@ class AliasWithCrudTest extends TestCase
 
         $response = $this->deleteJson("/query/products/{$productId}");
 
-        $response->assertStatus(200);
-        $response->assertJson(['deleted' => true]);
+        $response->assertNoContent();
         $this->assertNull(Product::find($productId));
     }
 
