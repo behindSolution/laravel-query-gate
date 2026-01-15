@@ -47,7 +47,7 @@ class ActionExecutor
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
             $result = $actionConfiguration['handle']($request, $model, $payload);
         } elseif (in_array($action, ['create', 'update', 'delete'], true)) {
-            $result = $this->defaultHandle($action, $request, $model, $payload, $configuration);
+            $result = $this->defaultHandle($action, $request, $model, $payload, $configuration, $actionConfiguration);
         } else {
             throw new HttpException(500, sprintf('No handler defined for action "%s".', $action));
         }
@@ -235,21 +235,22 @@ class ActionExecutor
     /**
      * @param array<string, mixed> $payload
      * @param array<string, mixed> $configuration
+     * @param array<string, mixed> $actionConfiguration
      * @return mixed
      */
-    protected function defaultHandle(string $action, Request $request, Model $model, array $payload, array $configuration)
+    protected function defaultHandle(string $action, Request $request, Model $model, array $payload, array $configuration, array $actionConfiguration)
     {
         switch ($action) {
             case 'create':
                 $model->fill($payload);
                 $model->save();
 
-                return $this->applySelectColumns($model->refresh(), $configuration);
+                return $this->refreshAndFormat($model, $request, $configuration, $actionConfiguration);
             case 'update':
                 $model->fill($payload);
                 $model->save();
 
-                return $this->applySelectColumns($model, $configuration);
+                return $this->refreshAndFormat($model, $request, $configuration, $actionConfiguration);
             case 'delete':
                 $model->delete();
 
@@ -257,6 +258,40 @@ class ActionExecutor
             default:
                 return $model;
         }
+    }
+
+    /**
+     * @param array<string, mixed> $configuration
+     * @param array<string, mixed> $actionConfiguration
+     * @return array<string, mixed>
+     */
+    protected function refreshAndFormat(Model $model, Request $request, array $configuration, array $actionConfiguration): array
+    {
+        $withoutQuery = $actionConfiguration['withoutQuery'] ?? false;
+
+        if ($withoutQuery) {
+            return $this->applySelectColumns($model->refresh(), $configuration);
+        }
+
+        $refreshed = $this->reloadModelWithQuery($model, $request, $configuration);
+
+        return $this->applySelectColumns($refreshed, $configuration);
+    }
+
+    /**
+     * @param array<string, mixed> $configuration
+     */
+    protected function reloadModelWithQuery(Model $model, Request $request, array $configuration): Model
+    {
+        $builder = $this->applyBaseQuery(
+            $model->newQuery(),
+            $configuration['query'] ?? null,
+            $request
+        );
+
+        $refreshed = $builder->find($model->getKey());
+
+        return $refreshed instanceof Model ? $refreshed : $model->refresh();
     }
 
     /**

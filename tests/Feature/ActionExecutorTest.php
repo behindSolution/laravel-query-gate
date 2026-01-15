@@ -238,4 +238,86 @@ class ActionExecutorTest extends TestCase
         $this->assertArrayNotHasKey('status', $result);
         $this->assertArrayNotHasKey('created_at', $result);
     }
+
+    public function testUpdateReturnsQueryComputedFieldsByDefault(): void
+    {
+        $post = Post::create(['title' => 'Original']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title', 'comments_count'])
+            ->query(fn ($query) => $query->withCount('comments'))
+            ->actions(fn ($actions) => $actions->update(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'PATCH', [
+            'title' => 'Updated Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('id', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayHasKey('comments_count', $result);
+        $this->assertSame(0, $result['comments_count']);
+    }
+
+    public function testUpdateWithoutQueryDoesNotIncludeComputedFields(): void
+    {
+        $post = Post::create(['title' => 'Original']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title', 'comments_count'])
+            ->query(fn ($query) => $query->withCount('comments'))
+            ->actions(fn ($actions) => $actions->update(fn ($action) => $action
+                ->validation(['title' => 'required|string'])
+                ->withoutQuery()
+            ))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'PATCH', [
+            'title' => 'Updated Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('id', $result);
+        $this->assertArrayHasKey('title', $result);
+        // comments_count should be null because withoutQuery() was used
+        $this->assertNull($result['comments_count']);
+    }
+
+    public function testCreateReturnsQueryComputedFieldsByDefault(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title', 'comments_count'])
+            ->query(fn ($query) => $query->withCount('comments'))
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'New Post',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('id', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayHasKey('comments_count', $result);
+        $this->assertSame(0, $result['comments_count']);
+    }
 }
