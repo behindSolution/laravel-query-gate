@@ -467,12 +467,27 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 
 ### Endpoints
 
-All endpoints require the `model` query parameter:
+**Canonical endpoints** (using query parameter):
 
-- `GET /query?model=App\Models\Post` → list with filters/sort/pagination.
-- `POST /query?model=App\Models\Post` → create (requires `actions.create` declaration).
-- `PATCH /query/{id}?model=App\Models\Post` → update by route key (requires `actions.update`).
-- `DELETE /query/{id}?model=App\Models\Post` → delete by route key (requires `actions.delete`).
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/query?model=App\Models\Post` | List with filters/sort/pagination |
+| `POST` | `/query?model=App\Models\Post` | Create (requires `actions.create`) |
+| `PATCH` | `/query/{id}?model=App\Models\Post` | Update by route key (requires `actions.update`) |
+| `DELETE` | `/query/{id}?model=App\Models\Post` | Delete by route key (requires `actions.delete`) |
+
+**Alias-based endpoints** (when `->alias('posts')` is configured):
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/query/posts` | List with filters/sort/pagination |
+| `POST` | `/query/posts` | Create |
+| `PATCH` | `/query/posts/{id}` | Update by route key |
+| `DELETE` | `/query/posts/{id}` | Delete by route key |
+| `*` | `/query/posts/{action}` | Custom action without model binding |
+| `*` | `/query/posts/{id}/{action}` | Custom action with model route binding |
+
+The custom action routes honour the HTTP verb declared by `method()` in your action class. For example, a `publish` action with `method(): 'POST'` is accessible at `POST /query/posts/publish`, while an action that operates on a specific record (like `archive`) can be called at `POST /query/posts/123/archive`.
 
 When `validation` rules exist, the validated payload is passed to the default handler (and to custom `handle` closures). Without rules, the raw request data is used.
 
