@@ -101,11 +101,14 @@ class ActionExecutor
             return $instance;
         }
 
-        if (!in_array($action, ['update', 'delete'], true)) {
+        $requiresModel = in_array($action, ['update', 'delete'], true);
+        $hasIdentifier = $identifier !== null && $identifier !== '';
+
+        if (!$requiresModel && !$hasIdentifier) {
             return $instance;
         }
 
-        if ($identifier === null || $identifier === '') {
+        if ($requiresModel && !$hasIdentifier) {
             throw new HttpException(400, 'A valid identifier is required for this action.');
         }
 
