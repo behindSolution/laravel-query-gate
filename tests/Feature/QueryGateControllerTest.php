@@ -446,6 +446,57 @@ class QueryGateControllerTest extends TestCase
 
         $this->assertSame(['updated' => true], $result);
     }
+
+    public function testIndexReturns403WhenListingIsDisabled(): void
+    {
+        $builder = Mockery::mock(Builder::class);
+
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, [
+            'listing_disabled' => true,
+        ]);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_BUILDER, $builder);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectExceptionMessage('Listing is not available for this resource.');
+
+        $controller->index($request);
+    }
+
+    public function testIndexAllowsListingWhenNotDisabled(): void
+    {
+        $builder = Mockery::mock(Builder::class);
+
+        $request = Request::create('/query', 'GET', [
+            'model' => Post::class,
+        ]);
+
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_MODEL, Post::class);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, []);
+        $request->attributes->set(ResolveModelMiddleware::ATTRIBUTE_BUILDER, $builder);
+
+        $executor = Mockery::mock(QueryExecutor::class);
+        $executor->shouldReceive('execute')
+            ->once()
+            ->andReturn(['data' => []]);
+
+        $actionExecutor = Mockery::mock(ActionExecutor::class);
+
+        $controller = new QueryGateController($executor, $actionExecutor);
+
+        $result = $controller->index($request);
+
+        $this->assertSame(['data' => []], $result);
+    }
 }
 
 

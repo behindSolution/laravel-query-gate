@@ -155,6 +155,35 @@ class QueryGateBuilderTest extends TestCase
         $this->assertArrayHasKey('actions', $definitions);
         $this->assertArrayHasKey('publish', $definitions['actions']);
     }
+
+    public function testWithoutListingDisablesListing(): void
+    {
+        $configuration = QueryGate::make()
+            ->alias('users')
+            ->withoutListing()
+            ->toArray();
+
+        $this->assertArrayHasKey('listing_disabled', $configuration);
+        $this->assertTrue($configuration['listing_disabled']);
+    }
+
+    public function testListingEnabledByDefault(): void
+    {
+        $configuration = QueryGate::make()
+            ->alias('users')
+            ->toArray();
+
+        $this->assertArrayNotHasKey('listing_disabled', $configuration);
+    }
+
+    public function testWithoutListingRejectsVersionContext(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Listing configuration must be defined at the root level');
+
+        QueryGate::make()
+            ->version('2024-01-01', fn ($builder) => $builder->withoutListing());
+    }
 }
 
 

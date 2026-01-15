@@ -26,6 +26,10 @@ class QueryGateController
     {
         [$model, $configuration, $builder] = $this->resolveQueryContext($request);
 
+        if (!empty($configuration['listing_disabled'])) {
+            throw new HttpException(403, 'Listing is not available for this resource.');
+        }
+
         $context = new QueryContext($model, $request, $builder);
 
         return $this->queryExecutor->execute($context, $configuration);
