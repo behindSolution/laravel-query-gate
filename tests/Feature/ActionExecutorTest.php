@@ -141,8 +141,9 @@ class ActionExecutorTest extends TestCase
 
         $result = $executor->execute('delete', $request, Post::class, $definition, (string) $post->id);
 
-        $this->assertInstanceOf(\Illuminate\Http\JsonResponse::class, $result);
-        $this->assertSame(['deleted' => true], $result->getData(true));
+        $this->assertInstanceOf(\Illuminate\Http\Response::class, $result);
+        $this->assertSame(204, $result->getStatusCode());
+        $this->assertEmpty($result->getContent());
     }
 
     public function testCreateWithCustomHandlerWorksWithoutValidation(): void
@@ -181,7 +182,60 @@ class ActionExecutorTest extends TestCase
 
         $result = $executor->execute('create', $request, Post::class, $definition);
 
-        $this->assertInstanceOf(Post::class, $result);
-        $this->assertSame('Valid Title', $result->title);
+        $this->assertIsArray($result);
+        $this->assertSame('Valid Title', $result['title']);
+    }
+
+    public function testCreateReturnsOnlySelectColumns(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title'])
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Selected Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('id', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayNotHasKey('user_id', $result);
+        $this->assertArrayNotHasKey('status', $result);
+        $this->assertArrayNotHasKey('created_at', $result);
+    }
+
+    public function testUpdateReturnsOnlySelectColumns(): void
+    {
+        $post = Post::create(['title' => 'Original', 'status' => 'draft']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title'])
+            ->actions(fn ($actions) => $actions->update(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'PATCH', [
+            'title' => 'Updated Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('id', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertSame('Updated Title', $result['title']);
+        $this->assertArrayNotHasKey('user_id', $result);
+        $this->assertArrayNotHasKey('status', $result);
+        $this->assertArrayNotHasKey('created_at', $result);
     }
 }
