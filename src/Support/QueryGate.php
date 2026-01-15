@@ -63,6 +63,8 @@ class QueryGate implements Arrayable
      */
     protected array $versionOrder = [];
 
+    protected bool $listingDisabled = false;
+
     public function __construct(bool $isVersion = false)
     {
         $this->isVersion = $isVersion;
@@ -232,6 +234,17 @@ class QueryGate implements Arrayable
         }
 
         $this->alias = $alias;
+
+        return $this;
+    }
+
+    public function withoutListing(): self
+    {
+        if ($this->isVersion) {
+            throw new InvalidArgumentException('Listing configuration must be defined at the root level, outside of version blocks.');
+        }
+
+        $this->listingDisabled = true;
 
         return $this;
     }
@@ -510,6 +523,10 @@ class QueryGate implements Arrayable
 
         if ($this->alias !== null) {
             $configuration['alias'] = $this->alias;
+        }
+
+        if ($this->listingDisabled) {
+            $configuration['listing_disabled'] = true;
         }
 
         if ($this->filters !== []) {

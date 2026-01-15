@@ -78,6 +78,29 @@ Each model entry can:
 - Call `->select([...])` to restrict the attributes retrieved from the database (including relation columns via dot notation).
 - Call `->sorts([...])` to whitelist which columns can be used for sorting (matching the syntax accepted by the `sort` query parameter).
 - Call `->alias('users')` to expose pretty REST-like routes (e.g. `/query/users`, `/query/users/{id}`) in addition to the canonical query-string endpoint.
+- Call `->withoutListing()` to disable the GET listing endpoint while keeping actions (create, update, delete) available.
+
+### Disabling listing
+
+Sometimes you want to expose a model only for mutations (create, update, delete) without allowing clients to list records. Use `->withoutListing()` to disable the GET endpoint:
+
+```php
+QueryGate::make()
+    ->alias('users')
+    ->withoutListing()
+    ->actions(fn ($actions) => $actions
+        ->create(fn ($action) => $action
+            ->validations([
+                'name' => ['required', 'string'],
+                'email' => ['required', 'email', 'unique:users,email'],
+            ])
+        )
+        ->update()
+        ->delete()
+    );
+```
+
+When listing is disabled, `GET /query/users` returns HTTP 403 with the message "Listing is not available for this resource." All configured actions remain fully operational.
 
 ### Using the HasQueryGate trait
 
