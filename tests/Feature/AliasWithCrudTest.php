@@ -3,8 +3,10 @@
 namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\Comment;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Product;
+use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\ApproveCommentAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Support\Str;
 
@@ -184,5 +186,72 @@ class AliasWithCrudTest extends TestCase
         $response = $this->deleteJson("/query/products/{$fakeUuid}");
 
         $response->assertStatus(404);
+    }
+
+    public function testCustomActionWithModelReceivesLoadedModel(): void
+    {
+        $comment = Comment::create(['name' => 'Test Comment']);
+
+        config()->set('query-gate.models.' . Comment::class, QueryGate::make()
+            ->alias('comments')
+            ->actions(fn ($actions) => $actions->use(ApproveCommentAction::class))
+        );
+
+        $response = $this->postJson("/query/comments/{$comment->id}/approve");
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'approved' => true,
+            'comment_id' => $comment->id,
+            'comment_name' => 'Test Comment',
+        ]);
+    }
+
+    public function testCustomActionWithModelReturns404WhenNotFound(): void
+    {
+        config()->set('query-gate.models.' . Comment::class, QueryGate::make()
+            ->alias('comments')
+            ->actions(fn ($actions) => $actions->use(ApproveCommentAction::class))
+        );
+
+        $response = $this->postJson('/query/comments/99999/approve');
+
+        $response->assertStatus(404);
+    }
+
+    public function testCustomActionWithModelAndUuid(): void
+    {
+        $product = Product::create([
+            'name' => 'Product to Approve',
+            'price' => 100.00,
+        ]);
+
+        config()->set('query-gate.models.' . Product::class, QueryGate::make()
+            ->alias('products')
+            ->actions(fn ($actions) => $actions->use(ApproveCommentAction::class))
+        );
+
+        $response = $this->postJson("/query/products/{$product->id}/approve");
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'approved' => true,
+            'comment_id' => $product->id,
+            'comment_name' => 'Product to Approve',
+        ]);
+    }
+
+    public function testCustomActionWithModelReturns405WhenMethodDoesNotMatch(): void
+    {
+        $comment = Comment::create(['name' => 'Test Comment']);
+
+        config()->set('query-gate.models.' . Comment::class, QueryGate::make()
+            ->alias('comments')
+            ->actions(fn ($actions) => $actions->use(ApproveCommentAction::class))
+        );
+
+        $response = $this->deleteJson("/query/comments/{$comment->id}/approve");
+
+        $response->assertStatus(405);
     }
 }

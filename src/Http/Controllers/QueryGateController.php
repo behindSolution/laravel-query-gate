@@ -85,6 +85,14 @@ class QueryGateController
         return $this->executeAction($request, $action);
     }
 
+    public function actionWithModel(Request $request)
+    {
+        $identifier = $request->route('identifier');
+        $action = $request->route('action');
+
+        return $this->executeAction($request, $action, $identifier);
+    }
+
     public function changelog(Request $request)
     {
         $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, []);

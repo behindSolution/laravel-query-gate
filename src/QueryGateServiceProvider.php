@@ -73,6 +73,14 @@ class QueryGateServiceProvider extends ServiceProvider
                     ->where('model', '[^/]+')
                     ->name('query-gate.model.store');
 
+                Route::match(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{model}/{identifier}/{action}', [QueryGateController::class, 'actionWithModel'])
+                    ->where([
+                        'model' => '[^/]+',
+                        'identifier' => '[^/]+',
+                        'action' => '[A-Za-z][A-Za-z0-9\-_]*',
+                    ])
+                    ->name('query-gate.action.with-model');
+
                 Route::match(['GET', 'POST', 'PUT', 'OPTIONS'], '{model}/{action}', [QueryGateController::class, 'action'])
                     ->where([
                         'model' => '[^/]+',
