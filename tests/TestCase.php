@@ -5,6 +5,7 @@ namespace BehindSolution\LaravelQueryGate\Tests;
 use BehindSolution\LaravelQueryGate\QueryGateServiceProvider;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostPolicy;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\Product;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -43,6 +44,7 @@ abstract class TestCase extends Orchestra
 
         Schema::dropIfExists('comments');
         Schema::dropIfExists('posts');
+        Schema::dropIfExists('products');
         Schema::dropIfExists('users');
 
         Schema::create('users', function (Blueprint $table) {
@@ -63,6 +65,13 @@ abstract class TestCase extends Orchestra
             $table->increments('id');
             $table->unsignedInteger('post_id')->nullable();
             $table->string('name');
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('products', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->decimal('price', 10, 2)->nullable();
             $table->timestamp('created_at')->nullable();
         });
 

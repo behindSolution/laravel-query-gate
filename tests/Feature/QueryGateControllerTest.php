@@ -241,6 +241,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () use ($uuid) {
+            $route = new \Illuminate\Routing\Route('PATCH', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', $uuid);
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -251,7 +260,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->patchOrAction($request, $uuid);
+        $result = $controller->patchOrAction($request);
 
         $this->assertSame(['updated' => true], $result);
     }
@@ -268,6 +277,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () {
+            $route = new \Illuminate\Routing\Route('PATCH', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', 'publish');
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -278,7 +296,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->patchOrAction($request, 'publish');
+        $result = $controller->patchOrAction($request);
 
         $this->assertSame(['published' => true], $result);
     }
@@ -296,6 +314,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () {
+            $route = new \Illuminate\Routing\Route('PATCH', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', '42');
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -306,7 +333,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->patchOrAction($request, '42');
+        $result = $controller->patchOrAction($request);
 
         $this->assertSame(['updated' => true], $result);
     }
@@ -325,6 +352,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () use ($uuid) {
+            $route = new \Illuminate\Routing\Route('DELETE', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', $uuid);
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -335,7 +371,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->deleteOrAction($request, $uuid);
+        $result = $controller->deleteOrAction($request);
 
         $this->assertSame(['deleted' => true], $result);
     }
@@ -352,6 +388,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () {
+            $route = new \Illuminate\Routing\Route('DELETE', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', 'archive');
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -362,7 +407,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->deleteOrAction($request, 'archive');
+        $result = $controller->deleteOrAction($request);
 
         $this->assertSame(['archived' => true], $result);
     }
@@ -378,6 +423,15 @@ class QueryGateControllerTest extends TestCase
             ],
         ]);
 
+        $request->setRouteResolver(function () {
+            $route = new \Illuminate\Routing\Route('PATCH', 'query/{model}/{param}', []);
+            $route->bind($this->app['request']);
+            $route->setParameter('model', 'posts');
+            $route->setParameter('param', 'unknown-action');
+
+            return $route;
+        });
+
         $executor = Mockery::mock(QueryExecutor::class);
 
         $actionExecutor = Mockery::mock(ActionExecutor::class);
@@ -388,7 +442,7 @@ class QueryGateControllerTest extends TestCase
 
         $controller = new QueryGateController($executor, $actionExecutor);
 
-        $result = $controller->patchOrAction($request, 'unknown-action');
+        $result = $controller->patchOrAction($request);
 
         $this->assertSame(['updated' => true], $result);
     }

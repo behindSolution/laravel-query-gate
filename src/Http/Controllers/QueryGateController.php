@@ -58,8 +58,10 @@ class QueryGateController
         return $this->executeAction($request, 'delete', $id);
     }
 
-    public function patchOrAction(Request $request, string $param)
+    public function patchOrAction(Request $request)
     {
+        $param = $request->route('param');
+
         if ($this->isRegisteredAction($request, $param)) {
             return $this->executeAction($request, $param);
         }
@@ -67,8 +69,10 @@ class QueryGateController
         return $this->update($request, $param);
     }
 
-    public function deleteOrAction(Request $request, string $param)
+    public function deleteOrAction(Request $request)
     {
+        $param = $request->route('param');
+
         if ($this->isRegisteredAction($request, $param)) {
             return $this->executeAction($request, $param);
         }
