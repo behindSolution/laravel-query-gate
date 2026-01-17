@@ -5,11 +5,13 @@ namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 use BehindSolution\LaravelQueryGate\Actions\ActionExecutor;
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostResource;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\ArchivePostAction;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\CreatePostAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ActionExecutorTest extends TestCase
@@ -319,5 +321,166 @@ class ActionExecutorTest extends TestCase
         $this->assertArrayHasKey('title', $result);
         $this->assertArrayHasKey('comments_count', $result);
         $this->assertSame(0, $result['comments_count']);
+    }
+
+    public function testCreateReturnsResourceWhenConfigured(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Resource Post',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(JsonResource::class, $result);
+        $this->assertInstanceOf(PostResource::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertArrayHasKey('id', $resourceData);
+        $this->assertArrayHasKey('title', $resourceData);
+        $this->assertArrayHasKey('formatted_title', $resourceData);
+        $this->assertSame('Resource Post', $resourceData['title']);
+        $this->assertSame('RESOURCE POST', $resourceData['formatted_title']);
+    }
+
+    public function testUpdateReturnsResourceWhenConfigured(): void
+    {
+        $post = Post::create(['title' => 'Original']);
+
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->actions(fn ($actions) => $actions->update(fn ($action) => $action->validation(['title' => 'required|string'])))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'PATCH', [
+            'title' => 'Updated Title',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
+
+        $this->assertInstanceOf(JsonResource::class, $result);
+        $this->assertInstanceOf(PostResource::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertArrayHasKey('id', $resourceData);
+        $this->assertArrayHasKey('title', $resourceData);
+        $this->assertArrayHasKey('formatted_title', $resourceData);
+        $this->assertSame('Updated Title', $resourceData['title']);
+        $this->assertSame('UPDATED TITLE', $resourceData['formatted_title']);
+    }
+
+    public function testResourceIsProperlySerializedInJsonResponse(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action
+                ->validation(['title' => 'required|string'])
+                ->status(201)
+            ))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Json Response Post',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(PostResource::class, $result);
+
+        // Simulate how the response would be serialized
+        $response = $result->toResponse($request);
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $data = $response->getData(true);
+        $this->assertArrayHasKey('data', $data);
+        $this->assertSame('Json Response Post', $data['data']['title']);
+        $this->assertSame('JSON RESPONSE POST', $data['data']['formatted_title']);
+    }
+
+    public function testCustomHandleReturningResourceWorks(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title']) // This should be ignored when handle returns a Resource
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action
+                ->validation(['title' => 'required|string'])
+                ->handle(function ($request, $model, $payload) {
+                    $model->fill($payload);
+                    $model->save();
+
+                    return new PostResource($model);
+                })
+            ))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Custom Handle Resource',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(JsonResource::class, $result);
+        $this->assertInstanceOf(PostResource::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertArrayHasKey('id', $resourceData);
+        $this->assertArrayHasKey('title', $resourceData);
+        $this->assertArrayHasKey('formatted_title', $resourceData);
+        $this->assertSame('Custom Handle Resource', $resourceData['title']);
+        $this->assertSame('CUSTOM HANDLE RESOURCE', $resourceData['formatted_title']);
+    }
+
+    public function testCustomHandleResourceIgnoresSelectConfig(): void
+    {
+        $definition = QueryGate::make()
+            ->alias('posts')
+            ->select(['id']) // Only id in select, but Resource has more fields
+            ->actions(fn ($actions) => $actions->create(fn ($action) => $action
+                ->validation(['title' => 'required|string'])
+                ->handle(function ($request, $model, $payload) {
+                    $model->fill($payload);
+                    $model->save();
+
+                    // Return Resource - should include all Resource fields, not just 'id'
+                    return new PostResource($model);
+                })
+            ))
+            ->toArray();
+
+        $executor = new ActionExecutor();
+
+        $request = Request::create('/query', 'POST', [
+            'title' => 'Test Resource Override',
+        ]);
+        $request->headers->set('Accept', 'application/json');
+
+        $result = $executor->execute('create', $request, Post::class, $definition);
+
+        $this->assertInstanceOf(PostResource::class, $result);
+
+        $resourceData = $result->toArray($request);
+        // Resource should have all its fields, not limited by select config
+        $this->assertArrayHasKey('id', $resourceData);
+        $this->assertArrayHasKey('title', $resourceData);
+        $this->assertArrayHasKey('formatted_title', $resourceData);
     }
 }

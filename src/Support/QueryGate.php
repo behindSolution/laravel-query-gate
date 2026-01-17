@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate\Support;
 
 use Closure;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Http\Resources\Json\JsonResource;
 use InvalidArgumentException;
 
 class QueryGate implements Arrayable
@@ -47,6 +48,11 @@ class QueryGate implements Arrayable
      * @var array<int, string>
      */
     protected array $select = [];
+
+    /**
+     * @var class-string<JsonResource>|null
+     */
+    protected ?string $resource = null;
 
     /**
      * @var array<int, string>
@@ -198,13 +204,29 @@ class QueryGate implements Arrayable
     }
 
     /**
-     * @param array<int, string> $columns
+     * Set the columns to select or a Resource class to format the output.
+     *
+     * @param array<int, string>|class-string<JsonResource> $columnsOrResource
      */
-    public function select(array $columns): self
+    public function select(array|string $columnsOrResource): self
     {
-        $this->select = array_values(array_filter($columns, static function ($column) {
+        if (is_string($columnsOrResource)) {
+            if (!class_exists($columnsOrResource) || !is_subclass_of($columnsOrResource, JsonResource::class)) {
+                throw new InvalidArgumentException(
+                    sprintf('The class "%s" must be a valid JsonResource subclass.', $columnsOrResource)
+                );
+            }
+
+            $this->resource = $columnsOrResource;
+            $this->select = [];
+
+            return $this;
+        }
+
+        $this->select = array_values(array_filter($columnsOrResource, static function ($column) {
             return is_string($column) && $column !== '';
         }));
+        $this->resource = null;
 
         return $this;
     }
@@ -320,6 +342,10 @@ class QueryGate implements Arrayable
 
         if ($this->select !== []) {
             $definition['select'] = $this->select;
+        }
+
+        if ($this->resource !== null) {
+            $definition['resource'] = $this->resource;
         }
 
         if ($this->sorts !== []) {
@@ -543,6 +569,10 @@ class QueryGate implements Arrayable
 
         if ($this->select !== []) {
             $configuration['select'] = $this->select;
+        }
+
+        if ($this->resource !== null) {
+            $configuration['resource'] = $this->resource;
         }
 
         if ($this->sorts !== []) {

@@ -3,6 +3,7 @@
 namespace BehindSolution\LaravelQueryGate\Tests\Unit\Support;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostResource;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\PublishPostAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use InvalidArgumentException;
@@ -183,6 +184,76 @@ class QueryGateBuilderTest extends TestCase
 
         QueryGate::make()
             ->version('2024-01-01', fn ($builder) => $builder->withoutListing());
+    }
+
+    public function testSelectAcceptsResourceClass(): void
+    {
+        $configuration = QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->toArray();
+
+        $this->assertArrayHasKey('resource', $configuration);
+        $this->assertSame(PostResource::class, $configuration['resource']);
+        $this->assertArrayNotHasKey('select', $configuration);
+    }
+
+    public function testSelectWithResourceClearsSelectArray(): void
+    {
+        $configuration = QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title'])
+            ->select(PostResource::class)
+            ->toArray();
+
+        $this->assertArrayHasKey('resource', $configuration);
+        $this->assertSame(PostResource::class, $configuration['resource']);
+        $this->assertArrayNotHasKey('select', $configuration);
+    }
+
+    public function testSelectWithArrayClearsResource(): void
+    {
+        $configuration = QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->select(['id', 'title'])
+            ->toArray();
+
+        $this->assertArrayHasKey('select', $configuration);
+        $this->assertSame(['id', 'title'], $configuration['select']);
+        $this->assertArrayNotHasKey('resource', $configuration);
+    }
+
+    public function testSelectRejectsInvalidResourceClass(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must be a valid JsonResource subclass');
+
+        QueryGate::make()->select('InvalidClass');
+    }
+
+    public function testSelectRejectsNonResourceClass(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must be a valid JsonResource subclass');
+
+        QueryGate::make()->select(\stdClass::class);
+    }
+
+    public function testVersionCarriesResource(): void
+    {
+        $configuration = QueryGate::make()
+            ->version('2024-11-01', fn ($builder) => $builder
+                ->select(PostResource::class)
+            )
+            ->toArray();
+
+        $this->assertArrayHasKey('resource', $configuration);
+        $this->assertSame(PostResource::class, $configuration['resource']);
+
+        $definitions = $configuration['versions']['definitions']['2024-11-01'] ?? [];
+        $this->assertArrayHasKey('resource', $definitions);
+        $this->assertSame(PostResource::class, $definitions['resource']);
     }
 }
 

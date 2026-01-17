@@ -13,6 +13,8 @@ use Illuminate\Contracts\Pagination\Paginator as PaginatorContract;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use JsonException;
@@ -58,7 +60,7 @@ class QueryExecutor
 
         $result = $this->applyPagination($context, $configuration);
 
-        return $this->applySelection($result, $configuration['select'] ?? []);
+        return $this->applySelection($result, $configuration);
     }
 
     protected function applyBaseQuery(QueryContext $context, ?Closure $callback): void
@@ -168,11 +170,19 @@ class QueryExecutor
 
     /**
      * @param mixed $result
-     * @param array<int, string> $select
+     * @param array<string, mixed> $configuration
      * @return mixed
      */
-    protected function applySelection($result, array $select)
+    protected function applySelection($result, array $configuration)
     {
+        $resourceClass = $configuration['resource'] ?? null;
+
+        if (is_string($resourceClass) && class_exists($resourceClass) && is_subclass_of($resourceClass, JsonResource::class)) {
+            return $this->applyResourceSelection($result, $resourceClass);
+        }
+
+        $select = $configuration['select'] ?? [];
+
         if ($select === [] || !$this->hasNonEmptyStrings($select)) {
             return $result;
         }
@@ -206,6 +216,33 @@ class QueryExecutor
 
         if (is_array($result)) {
             return $this->filterArray($result, $tree);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Apply a Resource class to transform the result.
+     *
+     * @param mixed $result
+     * @param class-string<JsonResource> $resourceClass
+     * @return AnonymousResourceCollection|JsonResource|mixed
+     */
+    protected function applyResourceSelection($result, string $resourceClass)
+    {
+        if (($result instanceof LengthAwarePaginator)
+            || ($result instanceof CursorPaginatorContract)
+            || ($result instanceof PaginatorContract)
+        ) {
+            return $resourceClass::collection($result);
+        }
+
+        if ($result instanceof Collection) {
+            return $resourceClass::collection($result);
+        }
+
+        if (is_object($result)) {
+            return new $resourceClass($result);
         }
 
         return $result;
