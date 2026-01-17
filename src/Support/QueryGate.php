@@ -249,10 +249,10 @@ class QueryGate implements Arrayable
     }
 
     /**
-     * Set custom examples for OpenAPI documentation.
+     * Set custom examples for OpenAPI response documentation.
      *
      * Supports dot notation for nested relations:
-     * ->openapi([
+     * ->openapiResponse([
      *     'id' => 1,
      *     'name' => 'John Doe',
      *     'tags.id' => 10,
@@ -261,7 +261,7 @@ class QueryGate implements Arrayable
      *
      * @param array<string, mixed> $examples
      */
-    public function openapi(array $examples): self
+    public function openapiResponse(array $examples): self
     {
         $this->openapiExamples = $examples;
 

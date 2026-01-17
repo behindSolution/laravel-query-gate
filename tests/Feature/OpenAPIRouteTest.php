@@ -318,7 +318,7 @@ class OpenAPIRouteTest extends TestCase
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
             ->alias('posts')
             ->select(['id', 'title', 'author_name'])
-            ->openapi([
+            ->openapiResponse([
                 'id' => 42,
                 'title' => 'My Amazing Post',
                 'author_name' => 'John Doe',
@@ -346,7 +346,7 @@ class OpenAPIRouteTest extends TestCase
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
             ->alias('posts')
             ->select(['id', 'title', 'tags.id', 'tags.name'])
-            ->openapi([
+            ->openapiResponse([
                 'id' => 1,
                 'title' => 'Tech Article',
                 'tags.id' => 10,
@@ -377,7 +377,7 @@ class OpenAPIRouteTest extends TestCase
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
             ->alias('posts')
             ->select(PostResource::class)
-            ->openapi([
+            ->openapiResponse([
                 'id' => 999,
                 'title' => 'Custom Title',
                 'formatted_title' => 'CUSTOM TITLE',
@@ -407,14 +407,14 @@ class OpenAPIRouteTest extends TestCase
             ->alias('posts')
             ->version('2024-01-01', fn ($gate) => $gate
                 ->select(['id', 'title'])
-                ->openapi([
+                ->openapiResponse([
                     'id' => 1,
                     'title' => 'Version 1 Title',
                 ])
             )
             ->version('2024-06-01', fn ($gate) => $gate
                 ->select(['id', 'title', 'status'])
-                ->openapi([
+                ->openapiResponse([
                     'id' => 2,
                     'title' => 'Version 2 Title',
                     'status' => 'published',

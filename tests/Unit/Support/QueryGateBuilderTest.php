@@ -256,11 +256,11 @@ class QueryGateBuilderTest extends TestCase
         $this->assertSame(PostResource::class, $definitions['resource']);
     }
 
-    public function testOpenapiSetsCustomExamples(): void
+    public function testOpenapiResponseSetsCustomExamples(): void
     {
         $configuration = QueryGate::make()
             ->select(['id', 'name', 'email'])
-            ->openapi([
+            ->openapiResponse([
                 'id' => 42,
                 'name' => 'John Doe',
                 'email' => 'john@example.com',
@@ -273,11 +273,11 @@ class QueryGateBuilderTest extends TestCase
         $this->assertSame('john@example.com', $configuration['openapi_examples']['email']);
     }
 
-    public function testOpenapiWithDotNotation(): void
+    public function testOpenapiResponseWithDotNotation(): void
     {
         $configuration = QueryGate::make()
             ->select(['id', 'tags.id', 'tags.name'])
-            ->openapi([
+            ->openapiResponse([
                 'id' => 1,
                 'tags.id' => 10,
                 'tags.name' => 'Technology',
@@ -290,19 +290,19 @@ class QueryGateBuilderTest extends TestCase
         $this->assertSame('Technology', $configuration['openapi_examples']['tags.name']);
     }
 
-    public function testVersionCarriesOpenapiExamples(): void
+    public function testVersionCarriesOpenapiResponseExamples(): void
     {
         $configuration = QueryGate::make()
             ->version('2024-01-01', fn ($builder) => $builder
                 ->select(['id', 'title'])
-                ->openapi([
+                ->openapiResponse([
                     'id' => 1,
                     'title' => 'Version 1',
                 ])
             )
             ->version('2024-06-01', fn ($builder) => $builder
                 ->select(['id', 'title', 'status'])
-                ->openapi([
+                ->openapiResponse([
                     'id' => 2,
                     'title' => 'Version 2',
                     'status' => 'active',
