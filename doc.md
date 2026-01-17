@@ -280,26 +280,63 @@ You can also provide closures directly in the config if the logic is simple. Mod
 
 ### Custom Actions in OpenAPI
 
-Custom actions registered with `->use(ActionClass::class)` are automatically documented in the OpenAPI spec. The generator creates paths based on whether the action requires a model identifier:
+Custom actions registered with `->use(ActionClass::class)` are automatically documented in the OpenAPI spec. The generator **analyzes your code statically** to determine whether the action requires a model identifier (`{id}` in the URL).
 
-- **Actions with identifier**: `POST /query/posts/{id}/publish`
-- **Actions without identifier**: `POST /query/posts/bulk-publish`
+#### Automatic Detection
 
-Each custom action includes:
+The OpenAPI generator inspects the `handle()` method to check if it uses the `$model` parameter:
+
+- **Uses `$model`**: `POST /query/posts/{id}/publish` - requires an identifier
+- **Doesn't use `$model`**: `POST /query/posts/bulk-publish` - no identifier needed
+
+```php
+// This action USES $model → generates /query/posts/{id}/publish
+class PublishPost extends AbstractQueryGateAction
+{
+    public function action(): string { return 'publish'; }
+
+    public function handle($request, $model, array $payload)
+    {
+        $model->status = 'published';  // ← $model is used
+        $model->save();
+        return $model;
+    }
+}
+
+// This action does NOT use $model → generates /query/posts/bulk-publish
+class BulkPublishPosts extends AbstractQueryGateAction
+{
+    public function action(): string { return 'bulk-publish'; }
+
+    public function handle($request, $model, array $payload)
+    {
+        // Only uses $request and $payload, not $model
+        $ids = $payload['ids'] ?? [];
+        Post::whereIn('id', $ids)->update(['status' => 'published']);
+        return ['published_count' => count($ids)];
+    }
+}
+```
+
+#### Manual Override with `withoutQuery()`
+
+You can also explicitly configure whether an action needs an identifier using `withoutQuery()`:
+
+```php
+->actions(fn ($actions) => $actions
+    ->create(fn ($action) => $action
+        ->validations(['ids' => 'required|array'])
+        ->handle(fn ($request, $model, $payload) => /* ... */)
+        ->withoutQuery()  // Forces no {id} in URL
+    )
+)
+```
+
+Each custom action in the OpenAPI spec includes:
 - The HTTP method defined by `method()` in the action class
 - Request body schema based on `validations()`
 - Response status codes from `status()`
 - Description mentioning the handler class name
-
-```php
-QueryGate::make()
-    ->alias('posts')
-    ->actions(fn ($actions) => $actions
-        ->use(PublishPost::class)      // POST /query/posts/{id}/publish
-        ->use(ArchivePost::class)      // DELETE /query/posts/{id}/archive
-        ->use(BulkPublishPosts::class) // POST /query/posts/bulk-publish (if withoutQuery)
-    );
-```
 
 ### API Versioning in OpenAPI
 

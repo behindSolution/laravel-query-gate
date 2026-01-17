@@ -21,7 +21,12 @@ class PublishPostAction extends AbstractQueryGateAction
      */
     public function handle($request, $model, array $payload)
     {
+        // Uses $model to update the status
+        $model->status = 'published';
+        $model->save();
+
         return [
+            'id' => $model->id,
             'published' => true,
         ];
     }

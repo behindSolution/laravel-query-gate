@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\BulkPublishPostsAction;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\PublishPostAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 
@@ -184,6 +185,75 @@ class OpenAPIRouteTest extends TestCase
         $data = $response->json();
 
         // Check that create action exists on list path (no {id})
+        $this->assertArrayHasKey('/query/posts', $data['paths']);
+        $this->assertArrayHasKey('post', $data['paths']['/query/posts']);
+    }
+
+    public function testOpenApiDetectsActionThatUsesModel(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->use(PublishPostAction::class) // Uses $model in handle
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // PublishPostAction uses $model, so it should have {id} in the path
+        $this->assertArrayHasKey('/query/posts/{id}/publish', $data['paths']);
+        $this->assertArrayNotHasKey('/query/posts/publish', $data['paths']);
+    }
+
+    public function testOpenApiDetectsActionThatDoesNotUseModel(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->use(BulkPublishPostsAction::class) // Does NOT use $model in handle
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // BulkPublishPostsAction doesn't use $model, so it should NOT have {id} in the path
+        $this->assertArrayHasKey('/query/posts/bulk-publish', $data['paths']);
+        $this->assertArrayNotHasKey('/query/posts/{id}/bulk-publish', $data['paths']);
+    }
+
+    public function testOpenApiDetectsClosureThatDoesNotUseModel(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->create(fn ($action) => $action
+                    ->validations(['ids' => 'required|array'])
+                    ->handle(function ($request, $model, $payload) {
+                        // Only uses $request and $payload, not $model
+                        return ['processed' => count($payload['ids'] ?? [])];
+                    })
+                )
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // The closure doesn't use $model, but create action is always without {id}
         $this->assertArrayHasKey('/query/posts', $data['paths']);
         $this->assertArrayHasKey('post', $data['paths']['/query/posts']);
     }

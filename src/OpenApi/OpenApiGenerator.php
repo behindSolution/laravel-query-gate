@@ -325,9 +325,204 @@ class OpenApiGenerator
             return true;
         }
 
-        // Custom actions: check if withoutQuery is set or if method suggests no identifier
-        // By default, custom actions work with identifiers unless explicitly configured otherwise
-        return !($configuration['withoutQuery'] ?? false);
+        // If withoutQuery is explicitly set, respect it
+        if (isset($configuration['withoutQuery'])) {
+            return !$configuration['withoutQuery'];
+        }
+
+        // Analyze the handle to determine if it uses $model
+        return $this->handleUsesModelParameter($configuration);
+    }
+
+    /**
+     * Analyze if the handle closure/method uses the $model parameter.
+     */
+    protected function handleUsesModelParameter(array $configuration): bool
+    {
+        // Check if there's a class-based action
+        if (isset($configuration['class']) && is_string($configuration['class']) && class_exists($configuration['class'])) {
+            return $this->classHandleUsesModel($configuration['class']);
+        }
+
+        // Check if there's a closure handle
+        if (isset($configuration['handle']) && $configuration['handle'] instanceof \Closure) {
+            return $this->closureUsesModel($configuration['handle']);
+        }
+
+        // Default: assume it needs identifier for safety
+        return true;
+    }
+
+    /**
+     * Check if a class-based action's handle method uses the $model parameter.
+     */
+    protected function classHandleUsesModel(string $className): bool
+    {
+        try {
+            $reflection = new \ReflectionMethod($className, 'handle');
+            $parameters = $reflection->getParameters();
+
+            // The model is typically the second parameter ($request, $model, $payload)
+            if (count($parameters) < 2) {
+                return false;
+            }
+
+            $modelParam = $parameters[1];
+            $modelParamName = '$' . $modelParam->getName();
+
+            // Get the method body source code
+            $source = $this->getMethodSource($reflection);
+
+            if ($source === null) {
+                // Can't analyze, assume it needs model for safety
+                return true;
+            }
+
+            // Check if the model parameter is used in the method body
+            return $this->sourceUsesVariable($source, $modelParamName);
+        } catch (\ReflectionException $e) {
+            return true;
+        }
+    }
+
+    /**
+     * Check if a closure uses the $model parameter.
+     */
+    protected function closureUsesModel(\Closure $closure): bool
+    {
+        try {
+            $reflection = new \ReflectionFunction($closure);
+            $parameters = $reflection->getParameters();
+
+            // The model is typically the second parameter ($request, $model, $payload)
+            if (count($parameters) < 2) {
+                return false;
+            }
+
+            $modelParam = $parameters[1];
+            $modelParamName = '$' . $modelParam->getName();
+
+            // Get the closure body source code
+            $source = $this->getClosureSource($reflection);
+
+            if ($source === null) {
+                // Can't analyze, assume it needs model for safety
+                return true;
+            }
+
+            // Check if the model parameter is used in the closure body
+            return $this->sourceUsesVariable($source, $modelParamName);
+        } catch (\ReflectionException $e) {
+            return true;
+        }
+    }
+
+    /**
+     * Get the source code of a method.
+     */
+    protected function getMethodSource(\ReflectionMethod $reflection): ?string
+    {
+        $filename = $reflection->getFileName();
+
+        if ($filename === false || !file_exists($filename)) {
+            return null;
+        }
+
+        $startLine = $reflection->getStartLine();
+        $endLine = $reflection->getEndLine();
+
+        if ($startLine === false || $endLine === false) {
+            return null;
+        }
+
+        $lines = file($filename);
+
+        if ($lines === false) {
+            return null;
+        }
+
+        // Extract the method body (skip the signature line)
+        $methodLines = array_slice($lines, $startLine, $endLine - $startLine);
+
+        return implode('', $methodLines);
+    }
+
+    /**
+     * Get the source code of a closure.
+     */
+    protected function getClosureSource(\ReflectionFunction $reflection): ?string
+    {
+        $filename = $reflection->getFileName();
+
+        if ($filename === false || !file_exists($filename)) {
+            return null;
+        }
+
+        $startLine = $reflection->getStartLine();
+        $endLine = $reflection->getEndLine();
+
+        if ($startLine === false || $endLine === false) {
+            return null;
+        }
+
+        $lines = file($filename);
+
+        if ($lines === false) {
+            return null;
+        }
+
+        // Extract the closure body
+        $closureLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
+
+        return implode('', $closureLines);
+    }
+
+    /**
+     * Check if the source code uses a specific variable.
+     */
+    protected function sourceUsesVariable(string $source, string $variableName): bool
+    {
+        // Remove comments to avoid false positives
+        $source = $this->removeComments($source);
+
+        // Look for the variable being used (not just in the signature)
+        // We need to check if the variable appears after the opening brace
+        $bracePos = strpos($source, '{');
+
+        if ($bracePos === false) {
+            // Arrow function or simple expression
+            $arrowPos = strpos($source, '=>');
+            if ($arrowPos !== false) {
+                $body = substr($source, $arrowPos + 2);
+                return strpos($body, $variableName) !== false;
+            }
+            return false;
+        }
+
+        $body = substr($source, $bracePos + 1);
+
+        // Check if the variable is used in the body
+        // Match the variable name followed by non-word character (to avoid partial matches)
+        $pattern = '/' . preg_quote($variableName, '/') . '(?![a-zA-Z0-9_])/';
+
+        return preg_match($pattern, $body) === 1;
+    }
+
+    /**
+     * Remove PHP comments from source code.
+     */
+    protected function removeComments(string $source): string
+    {
+        // Remove single-line comments
+        $source = preg_replace('#//.*$#m', '', $source);
+
+        // Remove multi-line comments
+        $source = preg_replace('#/\*.*?\*/#s', '', $source);
+
+        // Remove hash comments
+        $source = preg_replace('/#.*$/m', '', $source);
+
+        return $source ?? '';
     }
 
     /**
