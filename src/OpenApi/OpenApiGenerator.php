@@ -92,8 +92,68 @@ class OpenApiGenerator
             'cache' => $this->sanitizeCache($definition['cache'] ?? null),
             'filters' => $this->mergeFilterMetadata($filters, $operators, $rawFilters),
             'select' => $this->normalizeStringArray($definition['select'] ?? []),
+            'resource' => $this->sanitizeResource($definition['resource'] ?? null),
             'sorts' => $this->normalizeStringArray($definition['sorts'] ?? []),
+            'openapi_examples' => $this->sanitizeOpenapiExamples($definition['openapi_examples'] ?? []),
             'actions' => $this->sanitizeActions($definition['actions'] ?? []),
+            'versions' => $this->sanitizeVersions($definition['versions'] ?? null),
+        ];
+    }
+
+    /**
+     * @param mixed $resource
+     * @return string|null
+     */
+    protected function sanitizeResource($resource): ?string
+    {
+        if (!is_string($resource) || $resource === '') {
+            return null;
+        }
+
+        if (!class_exists($resource)) {
+            return null;
+        }
+
+        return $resource;
+    }
+
+    /**
+     * Sanitize OpenAPI examples configuration.
+     *
+     * @param mixed $examples
+     * @return array<string, mixed>
+     */
+    protected function sanitizeOpenapiExamples($examples): array
+    {
+        if (!is_array($examples)) {
+            return [];
+        }
+
+        return $examples;
+    }
+
+    /**
+     * @param mixed $versions
+     * @return array<string, mixed>|null
+     */
+    protected function sanitizeVersions($versions): ?array
+    {
+        if (!is_array($versions) || !isset($versions['definitions'])) {
+            return null;
+        }
+
+        $definitions = $versions['definitions'];
+
+        if (!is_array($definitions) || $definitions === []) {
+            return null;
+        }
+
+        $versionList = array_keys($definitions);
+        $default = $versions['default'] ?? end($versionList);
+
+        return [
+            'available' => $versionList,
+            'default' => $default,
         ];
     }
 
@@ -232,12 +292,10 @@ class OpenApiGenerator
             return $actions;
         }
 
-        foreach (['create', 'update', 'delete'] as $action) {
-            if (!array_key_exists($action, $definitions)) {
+        foreach ($definitions as $action => $configuration) {
+            if (!is_string($action) || $action === '') {
                 continue;
             }
-
-            $configuration = $definitions[$action];
 
             if ($configuration === null) {
                 $configuration = [];
@@ -249,16 +307,289 @@ class OpenApiGenerator
 
             $validation = $this->buildValidationSchema($configuration['validation'] ?? []);
 
+            $isBuiltIn = in_array($action, ['create', 'update', 'delete'], true);
+            $method = $this->resolveActionMethod($action, $configuration);
+
             $actions[$action] = [
                 'enabled' => true,
+                'method' => $method,
+                'is_custom' => !$isBuiltIn,
+                'requires_identifier' => $this->actionRequiresIdentifier($action, $configuration),
                 'policies' => $this->normalizeStringArray($configuration['policy'] ?? []),
                 'uses_authorize_callback' => array_key_exists('authorize', $configuration),
                 'uses_handle_callback' => array_key_exists('handle', $configuration),
                 'validation' => $validation,
+                'status' => isset($configuration['status']) ? (int) $configuration['status'] : null,
+                'name' => $configuration['name'] ?? null,
+                'class' => $configuration['class'] ?? null,
+                'openapi_request' => $this->extractOpenapiRequestExamples($configuration),
             ];
         }
 
         return $actions;
+    }
+
+    /**
+     * Resolve the HTTP method for an action.
+     */
+    protected function resolveActionMethod(string $action, array $configuration): string
+    {
+        if (isset($configuration['method']) && is_string($configuration['method'])) {
+            return strtoupper($configuration['method']);
+        }
+
+        return match ($action) {
+            'create' => 'POST',
+            'update' => 'PATCH',
+            'delete' => 'DELETE',
+            default => 'POST',
+        };
+    }
+
+    /**
+     * Determine if an action requires a model identifier.
+     */
+    protected function actionRequiresIdentifier(string $action, array $configuration): bool
+    {
+        // Built-in actions have known requirements
+        if ($action === 'create') {
+            return false;
+        }
+
+        if (in_array($action, ['update', 'delete'], true)) {
+            return true;
+        }
+
+        // If withoutQuery is explicitly set, respect it
+        if (isset($configuration['withoutQuery'])) {
+            return !$configuration['withoutQuery'];
+        }
+
+        // Analyze the handle to determine if it uses $model
+        return $this->handleUsesModelParameter($configuration);
+    }
+
+    /**
+     * Analyze if the handle closure/method uses the $model parameter.
+     */
+    protected function handleUsesModelParameter(array $configuration): bool
+    {
+        // Check if there's a class-based action
+        if (isset($configuration['class']) && is_string($configuration['class']) && class_exists($configuration['class'])) {
+            return $this->classHandleUsesModel($configuration['class']);
+        }
+
+        // Check if there's a closure handle
+        if (isset($configuration['handle']) && $configuration['handle'] instanceof \Closure) {
+            return $this->closureUsesModel($configuration['handle']);
+        }
+
+        // Default: assume it needs identifier for safety
+        return true;
+    }
+
+    /**
+     * Extract OpenAPI request examples from action configuration.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extractOpenapiRequestExamples(array $configuration): array
+    {
+        // Check for inline action examples
+        if (isset($configuration['openapi_request']) && is_array($configuration['openapi_request'])) {
+            return $configuration['openapi_request'];
+        }
+
+        // Check for class-based action examples
+        if (isset($configuration['class']) && is_string($configuration['class']) && class_exists($configuration['class'])) {
+            try {
+                $instance = new $configuration['class']();
+
+                if (method_exists($instance, 'openapiRequest')) {
+                    $examples = $instance->openapiRequest();
+
+                    if (is_array($examples)) {
+                        return $examples;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore instantiation errors
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Check if a class-based action's handle method uses the $model parameter.
+     */
+    protected function classHandleUsesModel(string $className): bool
+    {
+        try {
+            $reflection = new \ReflectionMethod($className, 'handle');
+            $parameters = $reflection->getParameters();
+
+            // The model is typically the second parameter ($request, $model, $payload)
+            if (count($parameters) < 2) {
+                return false;
+            }
+
+            $modelParam = $parameters[1];
+            $modelParamName = '$' . $modelParam->getName();
+
+            // Get the method body source code
+            $source = $this->getMethodSource($reflection);
+
+            if ($source === null) {
+                // Can't analyze, assume it needs model for safety
+                return true;
+            }
+
+            // Check if the model parameter is used in the method body
+            return $this->sourceUsesVariable($source, $modelParamName);
+        } catch (\ReflectionException $e) {
+            return true;
+        }
+    }
+
+    /**
+     * Check if a closure uses the $model parameter.
+     */
+    protected function closureUsesModel(\Closure $closure): bool
+    {
+        try {
+            $reflection = new \ReflectionFunction($closure);
+            $parameters = $reflection->getParameters();
+
+            // The model is typically the second parameter ($request, $model, $payload)
+            if (count($parameters) < 2) {
+                return false;
+            }
+
+            $modelParam = $parameters[1];
+            $modelParamName = '$' . $modelParam->getName();
+
+            // Get the closure body source code
+            $source = $this->getClosureSource($reflection);
+
+            if ($source === null) {
+                // Can't analyze, assume it needs model for safety
+                return true;
+            }
+
+            // Check if the model parameter is used in the closure body
+            return $this->sourceUsesVariable($source, $modelParamName);
+        } catch (\ReflectionException $e) {
+            return true;
+        }
+    }
+
+    /**
+     * Get the source code of a method.
+     */
+    protected function getMethodSource(\ReflectionMethod $reflection): ?string
+    {
+        $filename = $reflection->getFileName();
+
+        if ($filename === false || !file_exists($filename)) {
+            return null;
+        }
+
+        $startLine = $reflection->getStartLine();
+        $endLine = $reflection->getEndLine();
+
+        if ($startLine === false || $endLine === false) {
+            return null;
+        }
+
+        $lines = file($filename);
+
+        if ($lines === false) {
+            return null;
+        }
+
+        // Extract the method body (skip the signature line)
+        $methodLines = array_slice($lines, $startLine, $endLine - $startLine);
+
+        return implode('', $methodLines);
+    }
+
+    /**
+     * Get the source code of a closure.
+     */
+    protected function getClosureSource(\ReflectionFunction $reflection): ?string
+    {
+        $filename = $reflection->getFileName();
+
+        if ($filename === false || !file_exists($filename)) {
+            return null;
+        }
+
+        $startLine = $reflection->getStartLine();
+        $endLine = $reflection->getEndLine();
+
+        if ($startLine === false || $endLine === false) {
+            return null;
+        }
+
+        $lines = file($filename);
+
+        if ($lines === false) {
+            return null;
+        }
+
+        // Extract the closure body
+        $closureLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
+
+        return implode('', $closureLines);
+    }
+
+    /**
+     * Check if the source code uses a specific variable.
+     */
+    protected function sourceUsesVariable(string $source, string $variableName): bool
+    {
+        // Remove comments to avoid false positives
+        $source = $this->removeComments($source);
+
+        // Look for the variable being used (not just in the signature)
+        // We need to check if the variable appears after the opening brace
+        $bracePos = strpos($source, '{');
+
+        if ($bracePos === false) {
+            // Arrow function or simple expression
+            $arrowPos = strpos($source, '=>');
+            if ($arrowPos !== false) {
+                $body = substr($source, $arrowPos + 2);
+                return strpos($body, $variableName) !== false;
+            }
+            return false;
+        }
+
+        $body = substr($source, $bracePos + 1);
+
+        // Check if the variable is used in the body
+        // Match the variable name followed by non-word character (to avoid partial matches)
+        $pattern = '/' . preg_quote($variableName, '/') . '(?![a-zA-Z0-9_])/';
+
+        return preg_match($pattern, $body) === 1;
+    }
+
+    /**
+     * Remove PHP comments from source code.
+     */
+    protected function removeComments(string $source): string
+    {
+        // Remove single-line comments
+        $source = preg_replace('#//.*$#m', '', $source);
+
+        // Remove multi-line comments
+        $source = preg_replace('#/\*.*?\*/#s', '', $source);
+
+        // Remove hash comments
+        $source = preg_replace('/#.*$/m', '', $source);
+
+        return $source ?? '';
     }
 
     /**
@@ -503,17 +834,198 @@ class OpenApiGenerator
                     $paths[$listPath] = $this->buildModelListPathItem($model, $tag, $openApiConfig, $identifier);
                 }
 
-                if ($this->modelHasAction($model, 'update') || $this->modelHasAction($model, 'delete')) {
+                if ($this->modelHasAction($model, 'update') || $this->modelHasAction($model, 'delete') || $this->modelHasCustomActionsWithIdentifier($model)) {
                     $detailPath = $listPath === '/' ? '/{id}' : rtrim($listPath, '/') . '/{id}';
 
                     if (!isset($paths[$detailPath])) {
                         $paths[$detailPath] = $this->buildModelDetailPathItem($model, $tag, $openApiConfig, $identifier);
                     }
                 }
+
+                // Build paths for custom actions
+                $this->buildCustomActionPaths($paths, $model, $tag, $openApiConfig, $listPath);
             }
         }
 
         return $paths;
+    }
+
+    /**
+     * Check if model has any custom actions that require an identifier.
+     */
+    protected function modelHasCustomActionsWithIdentifier(array $model): bool
+    {
+        foreach ($model['actions'] ?? [] as $action => $config) {
+            if (($config['is_custom'] ?? false) && ($config['requires_identifier'] ?? true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Build paths for custom actions.
+     */
+    protected function buildCustomActionPaths(
+        array &$paths,
+        array $model,
+        string $tag,
+        array $openApiConfig,
+        string $listPath
+    ): void {
+        foreach ($model['actions'] ?? [] as $action => $config) {
+            if (!($config['is_custom'] ?? false)) {
+                continue;
+            }
+
+            $requiresIdentifier = $config['requires_identifier'] ?? true;
+            $method = strtolower($config['method'] ?? 'post');
+
+            if ($requiresIdentifier) {
+                // Path: /query/posts/{id}/publish
+                $actionPath = rtrim($listPath, '/') . '/{id}/' . $action;
+            } else {
+                // Path: /query/posts/bulk-publish
+                $actionPath = rtrim($listPath, '/') . '/' . $action;
+            }
+
+            if (!isset($paths[$actionPath])) {
+                $paths[$actionPath] = [];
+            }
+
+            // Add path parameters if not already set
+            if (!isset($paths[$actionPath]['parameters'])) {
+                $pathParams = [];
+
+                if ($requiresIdentifier) {
+                    $pathParams[] = $this->buildIdentifierParameter();
+                }
+
+                if ($pathParams !== []) {
+                    $paths[$actionPath]['parameters'] = $pathParams;
+                }
+            }
+
+            $paths[$actionPath][$method] = $this->buildCustomActionOperation(
+                $action,
+                $config,
+                $model,
+                $tag,
+                $openApiConfig
+            );
+        }
+    }
+
+    /**
+     * Build OpenAPI operation for a custom action.
+     */
+    protected function buildCustomActionOperation(
+        string $action,
+        array $config,
+        array $model,
+        string $tag,
+        array $openApiConfig
+    ): array {
+        $singular = $this->resolveModelSingularName($model);
+        $actionName = $config['name'] ?? Str::title(str_replace(['-', '_'], ' ', $action));
+
+        $description = 'Executes the "' . $action . '" action for ' . strtolower($singular) . '.';
+
+        if ($config['class'] ?? null) {
+            $description .= ' Handled by ' . class_basename($config['class']) . '.';
+        }
+
+        $responses = $this->buildCustomActionResponses($action, $config, $model);
+
+        return $this->removeEmptyValues([
+            'summary' => $actionName . ' ' . $singular,
+            'description' => $description,
+            'tags' => [$tag],
+            'requestBody' => $this->buildCustomActionRequestBody($action, $config, $model),
+            'responses' => $responses,
+            'security' => $this->buildSecurityRequirement($openApiConfig),
+        ]);
+    }
+
+    /**
+     * Build request body for a custom action.
+     */
+    protected function buildCustomActionRequestBody(string $action, array $config, array $model): ?array
+    {
+        $schema = $config['validation']['schema'] ?? null;
+
+        if (!is_array($schema) || $schema === []) {
+            // No validation rules, request body might still be needed
+            $schema = [
+                'type' => 'object',
+                'additionalProperties' => true,
+                'description' => 'Payload for the ' . $action . ' action.',
+            ];
+        } else {
+            $schema['description'] = 'Payload for the ' . $action . ' action.';
+        }
+
+        // Use custom OpenAPI request examples if defined, otherwise infer from validation fields
+        $openapiRequest = $config['openapi_request'] ?? [];
+
+        if (is_array($openapiRequest) && $openapiRequest !== []) {
+            $example = $openapiRequest;
+        } else {
+            $example = $this->buildActionRequestExample($config['validation']['fields'] ?? []);
+        }
+
+        if ($example !== []) {
+            $schema['example'] = $example;
+        }
+
+        return [
+            'required' => false,
+            'content' => [
+                'application/json' => [
+                    'schema' => $schema,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Build responses for a custom action.
+     */
+    protected function buildCustomActionResponses(string $action, array $config, array $model): array
+    {
+        $status = $config['status'] ?? 200;
+        $statusStr = (string) $status;
+
+        $description = match ($status) {
+            200 => 'Action executed successfully.',
+            201 => 'Resource created successfully.',
+            202 => 'Action accepted for processing.',
+            204 => 'Action completed with no content.',
+            default => 'Action response.',
+        };
+
+        if ($status === 204) {
+            return [
+                $statusStr => [
+                    'description' => $description,
+                ],
+            ];
+        }
+
+        return [
+            $statusStr => [
+                'description' => $description,
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                        ],
+                        'example' => $this->buildRecordExample($model),
+                    ],
+                ],
+            ],
+        ];
     }
 
     protected function resolvePathIdentifiers(array $model): array
@@ -609,16 +1121,24 @@ class OpenApiGenerator
         $plural = $this->resolveModelPluralName($model);
 
         $filterParameter = $this->buildFilterParameter($model);
+        $versionParameter = $this->buildVersionParameter($model);
 
         $parameters = array_filter([
             $filterParameter,
             $this->buildSortParameter($model['sorts']),
             $this->buildCursorParameter(),
+            $versionParameter,
         ]);
+
+        $description = 'Returns ' . strtolower($plural) . ' applying Query Gate filters, sorting, selection, and pagination rules.';
+
+        if ($model['versions'] !== null) {
+            $description .= ' Supports API versioning via `X-Query-Version` header.';
+        }
 
         return $this->removeEmptyValues([
             'summary' => 'List ' . $plural,
-            'description' => 'Returns ' . strtolower($plural) . ' applying Query Gate filters, sorting, selection, and pagination rules.',
+            'description' => $description,
             'tags' => [$tag],
             'parameters' => array_values($parameters),
             'responses' => [
@@ -637,6 +1157,31 @@ class OpenApiGenerator
             ],
             'security' => $this->buildSecurityRequirement($openApiConfig),
         ]);
+    }
+
+    /**
+     * Build the version header parameter if versioning is enabled.
+     */
+    protected function buildVersionParameter(array $model): ?array
+    {
+        $versions = $model['versions'] ?? null;
+
+        if ($versions === null || !isset($versions['available']) || $versions['available'] === []) {
+            return null;
+        }
+
+        return [
+            'name' => 'X-Query-Version',
+            'in' => 'header',
+            'required' => false,
+            'description' => 'API version to use. Available versions: ' . implode(', ', $versions['available']) . '. Default: ' . ($versions['default'] ?? 'latest') . '.',
+            'schema' => [
+                'type' => 'string',
+                'enum' => $versions['available'],
+                'default' => $versions['default'] ?? null,
+            ],
+            'example' => $versions['default'] ?? $versions['available'][0] ?? null,
+        ];
     }
 
     protected function buildModelActionOperation(
@@ -717,15 +1262,187 @@ class OpenApiGenerator
 
     protected function buildRecordExample(array $model): array
     {
-        $select = $model['select'] ?? [];
+        $example = [];
 
-        if (!is_array($select) || $select === []) {
-            return [
-                'id' => 'undefined',
-            ];
+        // Check if a Resource class is configured
+        $resourceClass = $model['resource'] ?? null;
+
+        if (is_string($resourceClass) && class_exists($resourceClass)) {
+            $resourceFields = $this->extractResourceFields($resourceClass);
+
+            if ($resourceFields !== []) {
+                $example = $resourceFields;
+            }
         }
 
-        return $this->buildSelectionExample($select);
+        // If no Resource fields, try select columns
+        if ($example === []) {
+            $select = $model['select'] ?? [];
+
+            if (is_array($select) && $select !== []) {
+                $example = $this->buildSelectionExample($select);
+            } else {
+                $example = ['id' => 'undefined'];
+            }
+        }
+
+        // Apply custom OpenAPI examples (with dot notation support)
+        $openapiExamples = $model['openapi_examples'] ?? [];
+
+        if (is_array($openapiExamples) && $openapiExamples !== []) {
+            $example = $this->mergeOpenapiExamples($example, $openapiExamples);
+        }
+
+        return $example;
+    }
+
+    /**
+     * Merge custom OpenAPI examples into the base example structure.
+     * Supports dot notation for nested relations (e.g., 'tags.name').
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $examples
+     * @return array<string, mixed>
+     */
+    protected function mergeOpenapiExamples(array $base, array $examples): array
+    {
+        foreach ($examples as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            // Check if it's a dot notation key for nested relations
+            if (str_contains($key, '.')) {
+                $this->setNestedValue($base, $key, $value);
+            } else {
+                $base[$key] = $value;
+            }
+        }
+
+        return $base;
+    }
+
+    /**
+     * Set a value in a nested array using dot notation.
+     *
+     * @param array<string, mixed> $array
+     * @param string $key
+     * @param mixed $value
+     */
+    protected function setNestedValue(array &$array, string $key, mixed $value): void
+    {
+        $keys = explode('.', $key);
+        $lastKey = array_pop($keys);
+
+        $current = &$array;
+
+        foreach ($keys as $segment) {
+            // If the segment doesn't exist or isn't an array, create it
+            if (!isset($current[$segment]) || !is_array($current[$segment])) {
+                $current[$segment] = [];
+            }
+
+            // Check if it's a list (sequential array) - we want to update the first item
+            if (array_is_list($current[$segment]) && $current[$segment] !== []) {
+                $current = &$current[$segment][0];
+            } else {
+                $current = &$current[$segment];
+            }
+        }
+
+        $current[$lastKey] = $value;
+    }
+
+    /**
+     * Extract fields from a JsonResource class by analyzing its toArray method.
+     *
+     * @param class-string $resourceClass
+     * @return array<string, mixed>
+     */
+    protected function extractResourceFields(string $resourceClass): array
+    {
+        try {
+            $reflection = new \ReflectionMethod($resourceClass, 'toArray');
+            $source = $this->getMethodSource($reflection);
+
+            if ($source === null) {
+                return [];
+            }
+
+            return $this->parseResourceArrayKeys($source);
+        } catch (\ReflectionException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Parse array keys from a Resource's toArray method source code.
+     *
+     * @return array<string, mixed>
+     */
+    protected function parseResourceArrayKeys(string $source): array
+    {
+        $fields = [];
+
+        // Remove comments
+        $source = $this->removeComments($source);
+
+        // Find the return array pattern: return [ ... ] or return array( ... )
+        // Match array keys like 'key' => or "key" =>
+        $pattern = "/['\"]([a-zA-Z_][a-zA-Z0-9_]*)['\"]\\s*=>/";
+
+        if (preg_match_all($pattern, $source, $matches)) {
+            foreach ($matches[1] as $key) {
+                $fields[$key] = $this->inferExampleValueForField($key, $source);
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Infer an example value for a field based on its name and context.
+     */
+    protected function inferExampleValueForField(string $fieldName, string $source): mixed
+    {
+        $lowerField = strtolower($fieldName);
+
+        // Try to infer type from common field naming patterns
+        if ($lowerField === 'id') {
+            return 1;
+        }
+
+        if (str_contains($lowerField, '_at') || str_contains($lowerField, 'date')) {
+            return '2024-01-01T00:00:00Z';
+        }
+
+        if (str_contains($lowerField, '_count') || str_contains($lowerField, 'count')) {
+            return 0;
+        }
+
+        if (str_starts_with($lowerField, 'is_') || str_starts_with($lowerField, 'has_')) {
+            return true;
+        }
+
+        if (str_contains($lowerField, 'email')) {
+            return 'user@example.com';
+        }
+
+        if (str_contains($lowerField, 'url') || str_contains($lowerField, 'link')) {
+            return 'https://example.com';
+        }
+
+        if (str_contains($lowerField, 'price') || str_contains($lowerField, 'amount') || str_contains($lowerField, 'total')) {
+            return 0.00;
+        }
+
+        // Check if the field maps to a nested resource (array/collection)
+        $fieldPattern = "/['\"]" . preg_quote($fieldName, '/') . "['\"]\\s*=>\\s*.*?(Resource::collection|new\\s+\\w+Resource)/";
+        if (preg_match($fieldPattern, $source)) {
+            return [['id' => 1]];
+        }
+
+        return 'string';
     }
 
     protected function buildSelectionExample(array $select): array
@@ -882,7 +1599,7 @@ class OpenApiGenerator
                 $operatorProperties[$operator] = array_filter([
                     'type' => 'string',
                     'description' => $this->describeOperator($operator, $metadata['rules'] ?? []),
-                    'example' => $this->exampleForOperator($operator),
+                    'example' => $this->exampleForOperator($operator, $metadata['rules'] ?? []),
                 ]);
             }
 
@@ -1181,6 +1898,21 @@ class OpenApiGenerator
                     'type' => 'object',
                     'properties' => $actions,
                 ] : null,
+                'versions' => $model['versions'] !== null ? [
+                    'type' => 'object',
+                    'properties' => [
+                        'available' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'example' => $model['versions']['available'] ?? [],
+                        ],
+                        'default' => [
+                            'type' => 'string',
+                            'example' => $model['versions']['default'] ?? null,
+                        ],
+                    ],
+                    'description' => 'API versioning information. Use X-Query-Version header to select a specific version.',
+                ] : null,
             ]),
         ]);
     }
@@ -1205,7 +1937,14 @@ class OpenApiGenerator
             $schema['description'] = 'Payload accepted by the action. Rules enforced by the host application.';
         }
 
-        $example = $this->buildActionRequestExample($actionData['validation']['fields'] ?? []);
+        // Use custom OpenAPI request examples if defined, otherwise infer from validation fields
+        $openapiRequest = $actionData['openapi_request'] ?? [];
+
+        if (is_array($openapiRequest) && $openapiRequest !== []) {
+            $example = $openapiRequest;
+        } else {
+            $example = $this->buildActionRequestExample($actionData['validation']['fields'] ?? []);
+        }
 
         if ($example !== []) {
             $schema['example'] = $example;
@@ -1432,13 +2171,61 @@ class OpenApiGenerator
         return $description;
     }
 
-    protected function exampleForOperator(string $operator): ?string
+    protected function exampleForOperator(string $operator, array $rules = []): ?string
     {
+        // Try to infer a better example based on validation rules
+        $type = $this->inferTypeFromRules($rules);
+
         return match ($operator) {
-            'between' => 'undefined,undefined',
-            'in', 'not_in' => 'undefined,undefined',
-            default => 'undefined',
+            'between' => match ($type) {
+                'date' => '2024-01-01,2024-12-31',
+                'integer', 'numeric' => '1,100',
+                default => 'start_value,end_value',
+            },
+            'in', 'not_in' => match ($type) {
+                'integer' => '1,2,3',
+                default => 'value1,value2,value3',
+            },
+            'like' => '%search%',
+            'eq', 'neq' => match ($type) {
+                'date' => '2024-01-01',
+                'boolean' => 'true',
+                'integer' => '1',
+                default => 'value',
+            },
+            'gt', 'gte', 'lt', 'lte' => match ($type) {
+                'date' => '2024-01-01',
+                'integer', 'numeric' => '10',
+                default => 'value',
+            },
+            default => 'value',
         };
+    }
+
+    /**
+     * Infer type from validation rules.
+     */
+    protected function inferTypeFromRules(array $rules): string
+    {
+        $lowerRules = array_map('strtolower', $rules);
+
+        if ($this->containsRule($lowerRules, 'date') || $this->containsRule($lowerRules, 'datetime')) {
+            return 'date';
+        }
+
+        if ($this->containsRule($lowerRules, 'boolean')) {
+            return 'boolean';
+        }
+
+        if ($this->containsRule($lowerRules, 'integer')) {
+            return 'integer';
+        }
+
+        if ($this->containsRule($lowerRules, 'numeric')) {
+            return 'numeric';
+        }
+
+        return 'string';
     }
 
     /**

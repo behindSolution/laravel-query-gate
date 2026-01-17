@@ -46,4 +46,15 @@ abstract class AbstractQueryGateAction implements QueryGateAction
     {
         return null;
     }
+
+    /**
+     * Custom examples for OpenAPI request body documentation.
+     * Override this method to provide specific examples for your action.
+     *
+     * @return array<string, mixed>
+     */
+    public function openapiRequest(): array
+    {
+        return [];
+    }
 }

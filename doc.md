@@ -273,10 +273,351 @@ class QueryGateModifier implements DocumentModifier
 
         return $document;
     }
-}
+} 
 ```
 
 You can also provide closures directly in the config if the logic is simple. Modifiers run in order, making it easy to compose multiple layers (base metadata, project-specific additions, per-environment tweaks, etc.).
+
+### Custom Actions in OpenAPI
+
+Custom actions registered with `->use(ActionClass::class)` are automatically documented in the OpenAPI spec. The generator **analyzes your code statically** to determine whether the action requires a model identifier (`{id}` in the URL).
+
+#### Automatic Detection
+
+The OpenAPI generator inspects the `handle()` method to check if it uses the `$model` parameter:
+
+- **Uses `$model`**: `POST /query/posts/{id}/publish` - requires an identifier
+- **Doesn't use `$model`**: `POST /query/posts/bulk-publish` - no identifier needed
+
+```php
+// This action USES $model → generates /query/posts/{id}/publish
+class PublishPost extends AbstractQueryGateAction
+{
+    public function action(): string { return 'publish'; }
+
+    public function handle($request, $model, array $payload)
+    {
+        $model->status = 'published';  // ← $model is used
+        $model->save();
+        return $model;
+    }
+}
+
+// This action does NOT use $model → generates /query/posts/bulk-publish
+class BulkPublishPosts extends AbstractQueryGateAction
+{
+    public function action(): string { return 'bulk-publish'; }
+
+    public function handle($request, $model, array $payload)
+    {
+        // Only uses $request and $payload, not $model
+        $ids = $payload['ids'] ?? [];
+        Post::whereIn('id', $ids)->update(['status' => 'published']);
+        return ['published_count' => count($ids)];
+    }
+}
+```
+
+#### Manual Override with `withoutQuery()`
+
+You can also explicitly configure whether an action needs an identifier using `withoutQuery()`:
+
+```php
+->actions(fn ($actions) => $actions
+    ->create(fn ($action) => $action
+        ->validations(['ids' => 'required|array'])
+        ->handle(fn ($request, $model, $payload) => /* ... */)
+        ->withoutQuery()  // Forces no {id} in URL
+    )
+)
+```
+
+Each custom action in the OpenAPI spec includes:
+- The HTTP method defined by `method()` in the action class
+- Request body schema based on `validations()`
+- Response status codes from `status()`
+- Description mentioning the handler class name
+
+### OpenAPI Request Examples
+
+You can provide custom examples for action request bodies using the `openapiRequest()` method. This helps API consumers understand what data to send.
+
+#### For Inline Actions
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->actions(fn ($actions) => $actions
+        ->create(fn ($action) => $action
+            ->validations([
+                'title' => 'required|string|max:255',
+                'content' => 'required|string',
+                'status' => 'string',
+            ])
+            ->openapiRequest([
+                'title' => 'My New Post',
+                'content' => 'This is the content of my post.',
+                'status' => 'draft',
+            ])
+        )
+    );
+```
+
+When `openapiRequest()` is defined, it **completely replaces** the inferred examples from validation rules. Only the fields you specify will appear in the example.
+
+#### For Custom Action Classes
+
+Override the `openapiRequest()` method in your action class:
+
+```php
+class PublishPostAction extends AbstractQueryGateAction
+{
+    public function action(): string
+    {
+        return 'publish';
+    }
+
+    public function method(): string
+    {
+        return 'POST';
+    }
+
+    public function validations(): array
+    {
+        return [
+            'scheduled_at' => 'nullable|date',
+            'notify_subscribers' => 'boolean',
+        ];
+    }
+
+    public function handle($request, $model, array $payload)
+    {
+        // ... implementation
+    }
+
+    public function openapiRequest(): array
+    {
+        return [
+            'scheduled_at' => '2024-06-01T10:00:00Z',
+            'notify_subscribers' => true,
+        ];
+    }
+}
+```
+
+This generates an OpenAPI request body example:
+
+```json
+{
+    "scheduled_at": "2024-06-01T10:00:00Z",
+    "notify_subscribers": true
+}
+```
+
+### API Versioning in OpenAPI
+
+When you define versions using `->version()`, the OpenAPI documentation includes:
+- An `X-Query-Version` header parameter with all available versions
+- The default version highlighted in the parameter description
+- Version information in the model definition schema
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->version('2024-01-01', fn ($gate) => $gate
+        ->filters(['title' => 'string'])
+        ->select(['id', 'title'])
+    )
+    ->version('2024-06-01', fn ($gate) => $gate
+        ->filters(['title' => 'string', 'status' => 'string'])
+        ->select(['id', 'title', 'status'])
+    );
+```
+
+The OpenAPI spec will show:
+
+```yaml
+parameters:
+  - name: X-Query-Version
+    in: header
+    required: false
+    description: "API version to use. Available versions: 2024-01-01, 2024-06-01. Default: 2024-06-01."
+    schema:
+      type: string
+      enum: ["2024-01-01", "2024-06-01"]
+      default: "2024-06-01"
+```
+
+### Resource Fields in OpenAPI
+
+When you use `->select(UserResource::class)`, the OpenAPI generator **analyzes the Resource's `toArray()` method** to extract field names and infer appropriate example values:
+
+```php
+// Your Resource
+class UserResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'created_at' => $this->created_at,
+            'is_active' => $this->is_active,
+        ];
+    }
+}
+
+// Generated OpenAPI example:
+{
+    "data": [{
+        "id": 1,
+        "name": "string",
+        "email": "user@example.com",
+        "created_at": "2024-01-01T00:00:00Z",
+        "is_active": true
+    }]
+}
+```
+
+The generator infers example values based on field naming patterns:
+
+| Field Pattern | Example Value |
+|---------------|---------------|
+| `id` | `1` |
+| `*_at`, `*date*` | `"2024-01-01T00:00:00Z"` |
+| `*_count`, `*count*` | `0` |
+| `is_*`, `has_*` | `true` |
+| `*email*` | `"user@example.com"` |
+| `*url*`, `*link*` | `"https://example.com"` |
+| `*price*`, `*amount*` | `0.00` |
+| Other | `"string"` |
+
+### Filter Examples in OpenAPI
+
+The OpenAPI generator provides intelligent examples for filter operators based on validation rules:
+
+| Validation Rule | Operator | Example |
+|-----------------|----------|---------|
+| `date` | `between` | `2024-01-01,2024-12-31` |
+| `date` | `gte`, `lte` | `2024-01-01` |
+| `integer` | `between` | `1,100` |
+| `integer` | `gt`, `lt` | `10` |
+| `string` | `like` | `%search%` |
+| `string` | `in` | `value1,value2,value3` |
+
+This makes the interactive documentation (ReDoc/Swagger UI) more useful for API consumers testing endpoints.
+
+### OpenAPI Response Examples
+
+While the generator infers example values from field names, you can provide explicit response examples using the `->openapiResponse()` method. This is especially useful when:
+
+- You want specific, meaningful values instead of generic ones
+- You need to show real-world data patterns
+- The field naming doesn't match the inference patterns
+
+```php
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
+
+QueryGate::make()
+    ->alias('users')
+    ->select(['id', 'name', 'email', 'status'])
+    ->openapiResponse([
+        'id' => 42,
+        'name' => 'John Doe',
+        'email' => 'john.doe@example.com',
+        'status' => 'active',
+    ]);
+```
+
+The custom examples **override** any inferred values, so you can mix both approaches:
+
+```php
+// Only override specific fields
+->openapiResponse([
+    'name' => 'Jane Smith',  // Override
+    'status' => 'verified',   // Override
+    // id, email will use inferred values
+])
+```
+
+#### Dot Notation for Nested Relations
+
+When your response includes nested relations (from `->select(['tags.id', 'tags.name'])`), use dot notation to set examples for nested fields:
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->select(['id', 'title', 'tags.id', 'tags.name', 'author.name'])
+    ->openapiResponse([
+        'id' => 1,
+        'title' => 'Getting Started with Laravel',
+        'tags.id' => 10,
+        'tags.name' => 'Technology',
+        'author.name' => 'Jane Doe',
+    ]);
+```
+
+This generates nested structures in the OpenAPI example:
+
+```json
+{
+    "data": [{
+        "id": 1,
+        "title": "Getting Started with Laravel",
+        "tags": [{
+            "id": 10,
+            "name": "Technology"
+        }],
+        "author": {
+            "name": "Jane Doe"
+        }
+    }]
+}
+```
+
+#### Combining with Resources
+
+Custom examples work with Resource classes too:
+
+```php
+QueryGate::make()
+    ->alias('users')
+    ->select(UserResource::class)
+    ->openapiResponse([
+        'id' => 999,
+        'full_name' => 'Administrator',
+        'role' => 'super_admin',
+    ]);
+```
+
+The examples override the values inferred from the Resource's `toArray()` method.
+
+#### Per-Version Examples
+
+Each version can have its own examples:
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->version('2024-01-01', fn ($gate) => $gate
+        ->select(['id', 'title'])
+        ->openapiResponse([
+            'id' => 1,
+            'title' => 'Version 1 Post',
+        ])
+    )
+    ->version('2024-06-01', fn ($gate) => $gate
+        ->select(['id', 'title', 'status'])
+        ->openapiResponse([
+            'id' => 2,
+            'title' => 'Version 2 Post',
+            'status' => 'published',
+        ])
+    );
+```
+
+The OpenAPI documentation will use the latest version's examples by default.
 
 ## Making Requests
 
@@ -351,6 +692,63 @@ When you need to take over the actual query logic, pair the whitelist with `->ra
 
 Use `->select(['created_at', 'posts.title'])` to limit which attributes are selected and serialized. Query Gate automatically keeps primary and foreign keys required to hydrate relations. Relation selections currently support a single relation depth (e.g. `posts.title`).
 
+#### Using API Resources
+
+Instead of specifying individual columns, you can pass a Laravel `JsonResource` class to `select()`. This lets you leverage the full power of API Resources for transforming your data:
+
+```php
+use App\Http\Resources\UserResource;
+
+QueryGate::make()
+    ->alias('users')
+    ->select(UserResource::class)
+    ->actions(fn ($actions) => $actions
+        ->create(fn ($a) => $a->validations(['name' => 'required']))
+        ->update(fn ($a) => $a->validations(['name' => 'sometimes']))
+    );
+```
+
+When a Resource class is configured:
+- **List queries** return an `AnonymousResourceCollection` with pagination metadata preserved
+- **Create/Update actions** return the Resource instance wrapping the model
+- The Resource's `toArray()` method controls the output format
+
+Example Resource:
+
+```php
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class UserResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'member_since' => $this->created_at->diffForHumans(),
+        ];
+    }
+}
+```
+
+You can switch between array-based and Resource-based selection at any time. The last call to `select()` wins:
+
+```php
+// Resource takes precedence
+QueryGate::make()
+    ->select(['id', 'name'])
+    ->select(UserResource::class); // This is used
+
+// Array takes precedence
+QueryGate::make()
+    ->select(UserResource::class)
+    ->select(['id', 'name']); // This is used
+```
+
 ## Actions
 
 Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`) can be customised:
@@ -380,6 +778,40 @@ Omitting the callback keeps the default behaviour for that action.
     )
     ->update()
     ->delete(fn ($action) => $action->policy('delete'))
+)
+```
+
+#### Returning Resources from handle()
+
+Custom `handle()` callbacks can return a `JsonResource` instance for full control over the response format. This is useful when you need different transformations for different actions:
+
+```php
+use App\Http\Resources\UserCreateResource;
+use App\Http\Resources\UserUpdateResource;
+
+->actions(fn ($actions) => $actions
+    ->create(fn ($action) => $action
+        ->validations([
+            'name' => ['required', 'string'],
+            'email' => ['required', 'email'],
+        ])
+        ->handle(function ($request, $model, $payload) {
+            $model->fill($payload);
+            $model->save();
+
+            // Return a Resource - it will be serialized automatically
+            return new UserCreateResource($model);
+        })
+    )
+    ->update(fn ($action) => $action
+        ->validations(['name' => 'sometimes'])
+        ->handle(function ($request, $model, $payload) {
+            $model->fill($payload);
+            $model->save();
+
+            return new UserUpdateResource($model);
+        })
+    )
 )
 ```
 
@@ -452,7 +884,7 @@ class DoPayment extends AbstractQueryGateAction
 }
 ```
 
-- `handle()` is mandatory. Returning a `Response`/`Responsable` short-circuits the serializer; any other value is wrapped in JSON when the client expects JSON. Use `status()` to override the default HTTP status (for example `202 Accepted`).
+- `handle()` is mandatory. Returning a `Response`, `Responsable`, or `JsonResource` short-circuits the serializer; any other value is wrapped in JSON when the client expects JSON. Use `status()` to override the default HTTP status (for example `202 Accepted`).
 - `method()` lets you pick the HTTP verb required to trigger the action (defaults to `POST`). When an alias is configured, Query Gate exposes a route such as `/{alias}/{action}` that honours the declared verb (e.g. `POST /query/users/refund`). The canonical query-string endpoint (`POST /query?model=App\Models\User&action=refund`) remains available for non-aliased access.
 - `validations()`, `authorize()`, and `policy()` remain optional hooks identical to the ones provided by `ActionsBuilder`.
 - If `status()` returns `null`, the package falls back to the default status code (`200 OK`, or the specific value used by the built-in handlers).
