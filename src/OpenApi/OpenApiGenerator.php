@@ -92,10 +92,28 @@ class OpenApiGenerator
             'cache' => $this->sanitizeCache($definition['cache'] ?? null),
             'filters' => $this->mergeFilterMetadata($filters, $operators, $rawFilters),
             'select' => $this->normalizeStringArray($definition['select'] ?? []),
+            'resource' => $this->sanitizeResource($definition['resource'] ?? null),
             'sorts' => $this->normalizeStringArray($definition['sorts'] ?? []),
             'actions' => $this->sanitizeActions($definition['actions'] ?? []),
             'versions' => $this->sanitizeVersions($definition['versions'] ?? null),
         ];
+    }
+
+    /**
+     * @param mixed $resource
+     * @return string|null
+     */
+    protected function sanitizeResource($resource): ?string
+    {
+        if (!is_string($resource) || $resource === '') {
+            return null;
+        }
+
+        if (!class_exists($resource)) {
+            return null;
+        }
+
+        return $resource;
     }
 
     /**
@@ -1188,6 +1206,17 @@ class OpenApiGenerator
 
     protected function buildRecordExample(array $model): array
     {
+        // Check if a Resource class is configured
+        $resourceClass = $model['resource'] ?? null;
+
+        if (is_string($resourceClass) && class_exists($resourceClass)) {
+            $resourceFields = $this->extractResourceFields($resourceClass);
+
+            if ($resourceFields !== []) {
+                return $resourceFields;
+            }
+        }
+
         $select = $model['select'] ?? [];
 
         if (!is_array($select) || $select === []) {
@@ -1197,6 +1226,98 @@ class OpenApiGenerator
         }
 
         return $this->buildSelectionExample($select);
+    }
+
+    /**
+     * Extract fields from a JsonResource class by analyzing its toArray method.
+     *
+     * @param class-string $resourceClass
+     * @return array<string, mixed>
+     */
+    protected function extractResourceFields(string $resourceClass): array
+    {
+        try {
+            $reflection = new \ReflectionMethod($resourceClass, 'toArray');
+            $source = $this->getMethodSource($reflection);
+
+            if ($source === null) {
+                return [];
+            }
+
+            return $this->parseResourceArrayKeys($source);
+        } catch (\ReflectionException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Parse array keys from a Resource's toArray method source code.
+     *
+     * @return array<string, mixed>
+     */
+    protected function parseResourceArrayKeys(string $source): array
+    {
+        $fields = [];
+
+        // Remove comments
+        $source = $this->removeComments($source);
+
+        // Find the return array pattern: return [ ... ] or return array( ... )
+        // Match array keys like 'key' => or "key" =>
+        $pattern = "/['\"]([a-zA-Z_][a-zA-Z0-9_]*)['\"]\\s*=>/";
+
+        if (preg_match_all($pattern, $source, $matches)) {
+            foreach ($matches[1] as $key) {
+                $fields[$key] = $this->inferExampleValueForField($key, $source);
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Infer an example value for a field based on its name and context.
+     */
+    protected function inferExampleValueForField(string $fieldName, string $source): mixed
+    {
+        $lowerField = strtolower($fieldName);
+
+        // Try to infer type from common field naming patterns
+        if ($lowerField === 'id') {
+            return 1;
+        }
+
+        if (str_contains($lowerField, '_at') || str_contains($lowerField, 'date')) {
+            return '2024-01-01T00:00:00Z';
+        }
+
+        if (str_contains($lowerField, '_count') || str_contains($lowerField, 'count')) {
+            return 0;
+        }
+
+        if (str_starts_with($lowerField, 'is_') || str_starts_with($lowerField, 'has_')) {
+            return true;
+        }
+
+        if (str_contains($lowerField, 'email')) {
+            return 'user@example.com';
+        }
+
+        if (str_contains($lowerField, 'url') || str_contains($lowerField, 'link')) {
+            return 'https://example.com';
+        }
+
+        if (str_contains($lowerField, 'price') || str_contains($lowerField, 'amount') || str_contains($lowerField, 'total')) {
+            return 0.00;
+        }
+
+        // Check if the field maps to a nested resource (array/collection)
+        $fieldPattern = "/['\"]" . preg_quote($fieldName, '/') . "['\"]\\s*=>\\s*.*?(Resource::collection|new\\s+\\w+Resource)/";
+        if (preg_match($fieldPattern, $source)) {
+            return [['id' => 1]];
+        }
+
+        return 'string';
     }
 
     protected function buildSelectionExample(array $select): array

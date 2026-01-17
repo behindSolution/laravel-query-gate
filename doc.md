@@ -372,6 +372,51 @@ parameters:
       default: "2024-06-01"
 ```
 
+### Resource Fields in OpenAPI
+
+When you use `->select(UserResource::class)`, the OpenAPI generator **analyzes the Resource's `toArray()` method** to extract field names and infer appropriate example values:
+
+```php
+// Your Resource
+class UserResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'created_at' => $this->created_at,
+            'is_active' => $this->is_active,
+        ];
+    }
+}
+
+// Generated OpenAPI example:
+{
+    "data": [{
+        "id": 1,
+        "name": "string",
+        "email": "user@example.com",
+        "created_at": "2024-01-01T00:00:00Z",
+        "is_active": true
+    }]
+}
+```
+
+The generator infers example values based on field naming patterns:
+
+| Field Pattern | Example Value |
+|---------------|---------------|
+| `id` | `1` |
+| `*_at`, `*date*` | `"2024-01-01T00:00:00Z"` |
+| `*_count`, `*count*` | `0` |
+| `is_*`, `has_*` | `true` |
+| `*email*` | `"user@example.com"` |
+| `*url*`, `*link*` | `"https://example.com"` |
+| `*price*`, `*amount*` | `0.00` |
+| Other | `"string"` |
+
 ### Filter Examples in OpenAPI
 
 The OpenAPI generator provides intelligent examples for filter operators based on validation rules:

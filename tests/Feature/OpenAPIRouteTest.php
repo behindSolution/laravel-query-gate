@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate\Tests\Feature;
 
 use BehindSolution\LaravelQueryGate\Support\QueryGate;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostResource;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\BulkPublishPostsAction;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\PublishPostAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
@@ -256,6 +257,59 @@ class OpenAPIRouteTest extends TestCase
         // The closure doesn't use $model, but create action is always without {id}
         $this->assertArrayHasKey('/query/posts', $data['paths']);
         $this->assertArrayHasKey('post', $data['paths']['/query/posts']);
+    }
+
+    public function testOpenApiExtractsFieldsFromResource(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // Find the example in the GET response
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+
+        // The example should contain fields from PostResource
+        $this->assertArrayHasKey('data', $example);
+        $this->assertIsArray($example['data']);
+        $this->assertNotEmpty($example['data']);
+
+        $record = $example['data'][0];
+
+        // PostResource returns: id, title, formatted_title
+        $this->assertArrayHasKey('id', $record);
+        $this->assertArrayHasKey('title', $record);
+        $this->assertArrayHasKey('formatted_title', $record);
+    }
+
+    public function testOpenApiResourceFieldsHaveInferredTypes(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+        $record = $example['data'][0] ?? [];
+
+        // id should be inferred as integer
+        $this->assertSame(1, $record['id']);
     }
 }
 
