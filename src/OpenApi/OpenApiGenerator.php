@@ -94,6 +94,7 @@ class OpenApiGenerator
             'select' => $this->normalizeStringArray($definition['select'] ?? []),
             'resource' => $this->sanitizeResource($definition['resource'] ?? null),
             'sorts' => $this->normalizeStringArray($definition['sorts'] ?? []),
+            'openapi_examples' => $this->sanitizeOpenapiExamples($definition['openapi_examples'] ?? []),
             'actions' => $this->sanitizeActions($definition['actions'] ?? []),
             'versions' => $this->sanitizeVersions($definition['versions'] ?? null),
         ];
@@ -114,6 +115,21 @@ class OpenApiGenerator
         }
 
         return $resource;
+    }
+
+    /**
+     * Sanitize OpenAPI examples configuration.
+     *
+     * @param mixed $examples
+     * @return array<string, mixed>
+     */
+    protected function sanitizeOpenapiExamples($examples): array
+    {
+        if (!is_array($examples)) {
+            return [];
+        }
+
+        return $examples;
     }
 
     /**
@@ -1206,6 +1222,8 @@ class OpenApiGenerator
 
     protected function buildRecordExample(array $model): array
     {
+        $example = [];
+
         // Check if a Resource class is configured
         $resourceClass = $model['resource'] ?? null;
 
@@ -1213,19 +1231,86 @@ class OpenApiGenerator
             $resourceFields = $this->extractResourceFields($resourceClass);
 
             if ($resourceFields !== []) {
-                return $resourceFields;
+                $example = $resourceFields;
             }
         }
 
-        $select = $model['select'] ?? [];
+        // If no Resource fields, try select columns
+        if ($example === []) {
+            $select = $model['select'] ?? [];
 
-        if (!is_array($select) || $select === []) {
-            return [
-                'id' => 'undefined',
-            ];
+            if (is_array($select) && $select !== []) {
+                $example = $this->buildSelectionExample($select);
+            } else {
+                $example = ['id' => 'undefined'];
+            }
         }
 
-        return $this->buildSelectionExample($select);
+        // Apply custom OpenAPI examples (with dot notation support)
+        $openapiExamples = $model['openapi_examples'] ?? [];
+
+        if (is_array($openapiExamples) && $openapiExamples !== []) {
+            $example = $this->mergeOpenapiExamples($example, $openapiExamples);
+        }
+
+        return $example;
+    }
+
+    /**
+     * Merge custom OpenAPI examples into the base example structure.
+     * Supports dot notation for nested relations (e.g., 'tags.name').
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $examples
+     * @return array<string, mixed>
+     */
+    protected function mergeOpenapiExamples(array $base, array $examples): array
+    {
+        foreach ($examples as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            // Check if it's a dot notation key for nested relations
+            if (str_contains($key, '.')) {
+                $this->setNestedValue($base, $key, $value);
+            } else {
+                $base[$key] = $value;
+            }
+        }
+
+        return $base;
+    }
+
+    /**
+     * Set a value in a nested array using dot notation.
+     *
+     * @param array<string, mixed> $array
+     * @param string $key
+     * @param mixed $value
+     */
+    protected function setNestedValue(array &$array, string $key, mixed $value): void
+    {
+        $keys = explode('.', $key);
+        $lastKey = array_pop($keys);
+
+        $current = &$array;
+
+        foreach ($keys as $segment) {
+            // If the segment doesn't exist or isn't an array, create it
+            if (!isset($current[$segment]) || !is_array($current[$segment])) {
+                $current[$segment] = [];
+            }
+
+            // Check if it's a list (sequential array) - we want to update the first item
+            if (array_is_list($current[$segment]) && $current[$segment] !== []) {
+                $current = &$current[$segment][0];
+            } else {
+                $current = &$current[$segment];
+            }
+        }
+
+        $current[$lastKey] = $value;
     }
 
     /**

@@ -255,6 +255,76 @@ class QueryGateBuilderTest extends TestCase
         $this->assertArrayHasKey('resource', $definitions);
         $this->assertSame(PostResource::class, $definitions['resource']);
     }
+
+    public function testOpenapiSetsCustomExamples(): void
+    {
+        $configuration = QueryGate::make()
+            ->select(['id', 'name', 'email'])
+            ->openapi([
+                'id' => 42,
+                'name' => 'John Doe',
+                'email' => 'john@example.com',
+            ])
+            ->toArray();
+
+        $this->assertArrayHasKey('openapi_examples', $configuration);
+        $this->assertSame(42, $configuration['openapi_examples']['id']);
+        $this->assertSame('John Doe', $configuration['openapi_examples']['name']);
+        $this->assertSame('john@example.com', $configuration['openapi_examples']['email']);
+    }
+
+    public function testOpenapiWithDotNotation(): void
+    {
+        $configuration = QueryGate::make()
+            ->select(['id', 'tags.id', 'tags.name'])
+            ->openapi([
+                'id' => 1,
+                'tags.id' => 10,
+                'tags.name' => 'Technology',
+            ])
+            ->toArray();
+
+        $this->assertArrayHasKey('openapi_examples', $configuration);
+        $this->assertSame(1, $configuration['openapi_examples']['id']);
+        $this->assertSame(10, $configuration['openapi_examples']['tags.id']);
+        $this->assertSame('Technology', $configuration['openapi_examples']['tags.name']);
+    }
+
+    public function testVersionCarriesOpenapiExamples(): void
+    {
+        $configuration = QueryGate::make()
+            ->version('2024-01-01', fn ($builder) => $builder
+                ->select(['id', 'title'])
+                ->openapi([
+                    'id' => 1,
+                    'title' => 'Version 1',
+                ])
+            )
+            ->version('2024-06-01', fn ($builder) => $builder
+                ->select(['id', 'title', 'status'])
+                ->openapi([
+                    'id' => 2,
+                    'title' => 'Version 2',
+                    'status' => 'active',
+                ])
+            )
+            ->toArray();
+
+        // Latest version examples should be at root level
+        $this->assertArrayHasKey('openapi_examples', $configuration);
+        $this->assertSame(2, $configuration['openapi_examples']['id']);
+        $this->assertSame('Version 2', $configuration['openapi_examples']['title']);
+        $this->assertSame('active', $configuration['openapi_examples']['status']);
+
+        // Version definitions should also have their examples
+        $v1 = $configuration['versions']['definitions']['2024-01-01'] ?? [];
+        $this->assertArrayHasKey('openapi_examples', $v1);
+        $this->assertSame(1, $v1['openapi_examples']['id']);
+
+        $v2 = $configuration['versions']['definitions']['2024-06-01'] ?? [];
+        $this->assertArrayHasKey('openapi_examples', $v2);
+        $this->assertSame(2, $v2['openapi_examples']['id']);
+    }
 }
 
 

@@ -71,6 +71,11 @@ class QueryGate implements Arrayable
 
     protected bool $listingDisabled = false;
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $openapiExamples = [];
+
     public function __construct(bool $isVersion = false)
     {
         $this->isVersion = $isVersion;
@@ -243,6 +248,26 @@ class QueryGate implements Arrayable
         return $this;
     }
 
+    /**
+     * Set custom examples for OpenAPI documentation.
+     *
+     * Supports dot notation for nested relations:
+     * ->openapi([
+     *     'id' => 1,
+     *     'name' => 'John Doe',
+     *     'tags.id' => 10,
+     *     'tags.name' => 'Technology',
+     * ])
+     *
+     * @param array<string, mixed> $examples
+     */
+    public function openapi(array $examples): self
+    {
+        $this->openapiExamples = $examples;
+
+        return $this;
+    }
+
     public function alias(string $alias): self
     {
         if ($this->isVersion) {
@@ -350,6 +375,10 @@ class QueryGate implements Arrayable
 
         if ($this->sorts !== []) {
             $definition['sorts'] = $this->sorts;
+        }
+
+        if ($this->openapiExamples !== []) {
+            $definition['openapi_examples'] = $this->openapiExamples;
         }
 
         if ($this->actions !== null) {
@@ -577,6 +606,10 @@ class QueryGate implements Arrayable
 
         if ($this->sorts !== []) {
             $configuration['sorts'] = $this->sorts;
+        }
+
+        if ($this->openapiExamples !== []) {
+            $configuration['openapi_examples'] = $this->openapiExamples;
         }
 
         return $this->applyDefaultVersion($configuration);

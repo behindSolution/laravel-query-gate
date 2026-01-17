@@ -311,6 +311,132 @@ class OpenAPIRouteTest extends TestCase
         // id should be inferred as integer
         $this->assertSame(1, $record['id']);
     }
+
+    public function testOpenApiCustomExamplesOverrideInferredValues(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title', 'author_name'])
+            ->openapi([
+                'id' => 42,
+                'title' => 'My Amazing Post',
+                'author_name' => 'John Doe',
+            ])
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+        $record = $example['data'][0] ?? [];
+
+        $this->assertSame(42, $record['id']);
+        $this->assertSame('My Amazing Post', $record['title']);
+        $this->assertSame('John Doe', $record['author_name']);
+    }
+
+    public function testOpenApiCustomExamplesWithDotNotation(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title', 'tags.id', 'tags.name'])
+            ->openapi([
+                'id' => 1,
+                'title' => 'Tech Article',
+                'tags.id' => 10,
+                'tags.name' => 'Technology',
+            ])
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+        $record = $example['data'][0] ?? [];
+
+        $this->assertSame(1, $record['id']);
+        $this->assertSame('Tech Article', $record['title']);
+        $this->assertIsArray($record['tags']);
+        $this->assertSame(10, $record['tags'][0]['id']);
+        $this->assertSame('Technology', $record['tags'][0]['name']);
+    }
+
+    public function testOpenApiCustomExamplesWithResourceClass(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(PostResource::class)
+            ->openapi([
+                'id' => 999,
+                'title' => 'Custom Title',
+                'formatted_title' => 'CUSTOM TITLE',
+            ])
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+        $record = $example['data'][0] ?? [];
+
+        // Custom examples should override inferred values from Resource
+        $this->assertSame(999, $record['id']);
+        $this->assertSame('Custom Title', $record['title']);
+        $this->assertSame('CUSTOM TITLE', $record['formatted_title']);
+    }
+
+    public function testOpenApiCustomExamplesWithVersions(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->version('2024-01-01', fn ($gate) => $gate
+                ->select(['id', 'title'])
+                ->openapi([
+                    'id' => 1,
+                    'title' => 'Version 1 Title',
+                ])
+            )
+            ->version('2024-06-01', fn ($gate) => $gate
+                ->select(['id', 'title', 'status'])
+                ->openapi([
+                    'id' => 2,
+                    'title' => 'Version 2 Title',
+                    'status' => 'published',
+                ])
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        $listPath = $data['paths']['/query/posts'];
+        $example = $listPath['get']['responses']['200']['content']['application/json']['example'] ?? [];
+        $record = $example['data'][0] ?? [];
+
+        // Should use the latest version's examples (2024-06-01)
+        $this->assertSame(2, $record['id']);
+        $this->assertSame('Version 2 Title', $record['title']);
+        $this->assertSame('published', $record['status']);
+    }
 }
 
 

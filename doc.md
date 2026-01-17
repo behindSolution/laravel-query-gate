@@ -432,6 +432,117 @@ The OpenAPI generator provides intelligent examples for filter operators based o
 
 This makes the interactive documentation (ReDoc/Swagger UI) more useful for API consumers testing endpoints.
 
+### Custom OpenAPI Examples
+
+While the generator infers example values from field names, you can provide explicit examples using the `->openapi()` method. This is especially useful when:
+
+- You want specific, meaningful values instead of generic ones
+- You need to show real-world data patterns
+- The field naming doesn't match the inference patterns
+
+```php
+use BehindSolution\LaravelQueryGate\Support\QueryGate;
+
+QueryGate::make()
+    ->alias('users')
+    ->select(['id', 'name', 'email', 'status'])
+    ->openapi([
+        'id' => 42,
+        'name' => 'John Doe',
+        'email' => 'john.doe@example.com',
+        'status' => 'active',
+    ]);
+```
+
+The custom examples **override** any inferred values, so you can mix both approaches:
+
+```php
+// Only override specific fields
+->openapi([
+    'name' => 'Jane Smith',  // Override
+    'status' => 'verified',   // Override
+    // id, email will use inferred values
+])
+```
+
+#### Dot Notation for Nested Relations
+
+When your response includes nested relations (from `->select(['tags.id', 'tags.name'])`), use dot notation to set examples for nested fields:
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->select(['id', 'title', 'tags.id', 'tags.name', 'author.name'])
+    ->openapi([
+        'id' => 1,
+        'title' => 'Getting Started with Laravel',
+        'tags.id' => 10,
+        'tags.name' => 'Technology',
+        'author.name' => 'Jane Doe',
+    ]);
+```
+
+This generates nested structures in the OpenAPI example:
+
+```json
+{
+    "data": [{
+        "id": 1,
+        "title": "Getting Started with Laravel",
+        "tags": [{
+            "id": 10,
+            "name": "Technology"
+        }],
+        "author": {
+            "name": "Jane Doe"
+        }
+    }]
+}
+```
+
+#### Combining with Resources
+
+Custom examples work with Resource classes too:
+
+```php
+QueryGate::make()
+    ->alias('users')
+    ->select(UserResource::class)
+    ->openapi([
+        'id' => 999,
+        'full_name' => 'Administrator',
+        'role' => 'super_admin',
+    ]);
+```
+
+The examples override the values inferred from the Resource's `toArray()` method.
+
+#### Per-Version Examples
+
+Each version can have its own examples:
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->version('2024-01-01', fn ($gate) => $gate
+        ->select(['id', 'title'])
+        ->openapi([
+            'id' => 1,
+            'title' => 'Version 1 Post',
+        ])
+    )
+    ->version('2024-06-01', fn ($gate) => $gate
+        ->select(['id', 'title', 'status'])
+        ->openapi([
+            'id' => 2,
+            'title' => 'Version 2 Post',
+            'status' => 'published',
+        ])
+    );
+```
+
+The OpenAPI documentation will use the latest version's examples by default.
+
 ## Making Requests
 
 All requests are handled by the registered route (default `GET /query`). Provide either the fully-qualified model name or one of the configured aliases:
