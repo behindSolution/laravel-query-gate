@@ -273,7 +273,7 @@ class QueryGateModifier implements DocumentModifier
 
         return $document;
     }
-}
+} 
 ```
 
 You can also provide closures directly in the config if the logic is simple. Modifiers run in order, making it easy to compose multiple layers (base metadata, project-specific additions, per-environment tweaks, etc.).
