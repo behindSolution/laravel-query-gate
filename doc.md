@@ -338,6 +338,82 @@ Each custom action in the OpenAPI spec includes:
 - Response status codes from `status()`
 - Description mentioning the handler class name
 
+### OpenAPI Request Examples
+
+You can provide custom examples for action request bodies using the `openapiRequest()` method. This helps API consumers understand what data to send.
+
+#### For Inline Actions
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->actions(fn ($actions) => $actions
+        ->create(fn ($action) => $action
+            ->validations([
+                'title' => 'required|string|max:255',
+                'content' => 'required|string',
+                'status' => 'string',
+            ])
+            ->openapiRequest([
+                'title' => 'My New Post',
+                'content' => 'This is the content of my post.',
+                'status' => 'draft',
+            ])
+        )
+    );
+```
+
+The custom examples **override** inferred values from validation rules. Fields without custom examples will show as `undefined`.
+
+#### For Custom Action Classes
+
+Override the `openapiRequest()` method in your action class:
+
+```php
+class PublishPostAction extends AbstractQueryGateAction
+{
+    public function action(): string
+    {
+        return 'publish';
+    }
+
+    public function method(): string
+    {
+        return 'POST';
+    }
+
+    public function validations(): array
+    {
+        return [
+            'scheduled_at' => 'nullable|date',
+            'notify_subscribers' => 'boolean',
+        ];
+    }
+
+    public function handle($request, $model, array $payload)
+    {
+        // ... implementation
+    }
+
+    public function openapiRequest(): array
+    {
+        return [
+            'scheduled_at' => '2024-06-01T10:00:00Z',
+            'notify_subscribers' => true,
+        ];
+    }
+}
+```
+
+This generates an OpenAPI request body example:
+
+```json
+{
+    "scheduled_at": "2024-06-01T10:00:00Z",
+    "notify_subscribers": true
+}
+```
+
 ### API Versioning in OpenAPI
 
 When you define versions using `->version()`, the OpenAPI documentation includes:

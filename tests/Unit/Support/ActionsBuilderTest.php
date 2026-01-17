@@ -64,4 +64,24 @@ class ActionsBuilderTest extends TestCase
         $this->assertArrayHasKey('archive', $actions);
         $this->assertSame('DELETE', $actions['archive']['method']);
     }
+
+    public function testOpenapiRequestSetsExamples(): void
+    {
+        $builder = new ActionsBuilder();
+
+        $builder->create(fn ($action) => $action
+            ->validations(['title' => 'required', 'content' => 'required'])
+            ->openapiRequest([
+                'title' => 'Example Title',
+                'content' => 'Example Content',
+            ])
+        );
+
+        $actions = $builder->toArray();
+
+        $this->assertArrayHasKey('create', $actions);
+        $this->assertArrayHasKey('openapi_request', $actions['create']);
+        $this->assertSame('Example Title', $actions['create']['openapi_request']['title']);
+        $this->assertSame('Example Content', $actions['create']['openapi_request']['content']);
+    }
 }

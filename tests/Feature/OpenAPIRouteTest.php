@@ -437,6 +437,121 @@ class OpenAPIRouteTest extends TestCase
         $this->assertSame('Version 2 Title', $record['title']);
         $this->assertSame('published', $record['status']);
     }
+
+    public function testOpenApiRequestExamplesForInlineAction(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->create(fn ($action) => $action
+                    ->validations(['title' => 'required', 'content' => 'required'])
+                    ->openapiRequest([
+                        'title' => 'My New Post',
+                        'content' => 'This is the content of my post.',
+                    ])
+                )
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // Debug: show available schema names
+        $schemaNames = array_keys($data['components']['schemas'] ?? []);
+
+        // Find the correct schema name for Post create action
+        $matchingSchema = null;
+        foreach ($schemaNames as $name) {
+            if (str_contains(strtolower($name), 'create')) {
+                $matchingSchema = $name;
+                break;
+            }
+        }
+
+        $this->assertNotNull($matchingSchema, 'No create schema found. Available: ' . implode(', ', $schemaNames));
+
+        $schema = $data['components']['schemas'][$matchingSchema];
+
+        $this->assertArrayHasKey('example', $schema, 'Schema: ' . json_encode($schema));
+        $this->assertSame('My New Post', $schema['example']['title']);
+        $this->assertSame('This is the content of my post.', $schema['example']['content']);
+    }
+
+    public function testOpenApiRequestExamplesForCustomAction(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->use(PublishPostAction::class)
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // Find the publish action request body
+        $publishPath = $data['paths']['/query/posts/{id}/publish']['post'] ?? [];
+        $requestBody = $publishPath['requestBody']['content']['application/json']['schema'] ?? [];
+
+        $this->assertArrayHasKey('example', $requestBody);
+        $this->assertSame('2024-06-01T10:00:00Z', $requestBody['example']['scheduled_at']);
+        $this->assertTrue($requestBody['example']['notify_subscribers']);
+    }
+
+    public function testOpenApiRequestExamplesOverrideValidationFields(): void
+    {
+        config()->set('query-gate.openAPI.enabled', true);
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->create(fn ($action) => $action
+                    ->validations([
+                        'title' => 'required|string|max:255',
+                        'content' => 'required|string',
+                        'status' => 'string',
+                    ])
+                    ->openapiRequest([
+                        'title' => 'Example Title',
+                        // 'content' not overridden - will be 'undefined'
+                        'status' => 'draft',
+                    ])
+                )
+            )
+        );
+
+        $response = $this->get('/query/docs.json');
+
+        $response->assertOk();
+
+        $data = $response->json();
+
+        // Find the correct schema name for Post create action
+        $schemaNames = array_keys($data['components']['schemas'] ?? []);
+        $matchingSchema = null;
+        foreach ($schemaNames as $name) {
+            if (str_contains(strtolower($name), 'create')) {
+                $matchingSchema = $name;
+                break;
+            }
+        }
+
+        $this->assertNotNull($matchingSchema, 'No create schema found. Available: ' . implode(', ', $schemaNames));
+
+        $schema = $data['components']['schemas'][$matchingSchema];
+
+        $this->assertArrayHasKey('example', $schema);
+        $this->assertSame('Example Title', $schema['example']['title']);
+        $this->assertSame('undefined', $schema['example']['content']); // Not overridden
+        $this->assertSame('draft', $schema['example']['status']);
+    }
 }
 
 

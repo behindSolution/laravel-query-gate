@@ -26,6 +26,11 @@ class ActionDefinition implements Arrayable
 
     protected bool $withoutQuery = false;
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $openapiRequestExamples = [];
+
     public function validations(array $rules): self
     {
         $this->validation = $rules;
@@ -108,6 +113,18 @@ class ActionDefinition implements Arrayable
         return $this;
     }
 
+    /**
+     * Set custom examples for OpenAPI request body documentation.
+     *
+     * @param array<string, mixed> $examples
+     */
+    public function openapiRequest(array $examples): self
+    {
+        $this->openapiRequestExamples = $examples;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         $data = array_filter([
@@ -124,6 +141,10 @@ class ActionDefinition implements Arrayable
 
         if ($this->withoutQuery) {
             $data['withoutQuery'] = true;
+        }
+
+        if ($this->openapiRequestExamples !== []) {
+            $data['openapi_request'] = $this->openapiRequestExamples;
         }
 
         return $data;

@@ -30,4 +30,12 @@ class PublishPostAction extends AbstractQueryGateAction
             'published' => true,
         ];
     }
+
+    public function openapiRequest(): array
+    {
+        return [
+            'scheduled_at' => '2024-06-01T10:00:00Z',
+            'notify_subscribers' => true,
+        ];
+    }
 }
