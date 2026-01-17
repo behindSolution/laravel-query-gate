@@ -363,7 +363,7 @@ QueryGate::make()
     );
 ```
 
-The custom examples **override** inferred values from validation rules. Fields without custom examples will show as `undefined`.
+When `openapiRequest()` is defined, it **completely replaces** the inferred examples from validation rules. Only the fields you specify will appear in the example.
 
 #### For Custom Action Classes
 

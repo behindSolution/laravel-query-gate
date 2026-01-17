@@ -966,14 +966,13 @@ class OpenApiGenerator
             $schema['description'] = 'Payload for the ' . $action . ' action.';
         }
 
-        // Build base example from validation fields
-        $example = $this->buildActionRequestExample($config['validation']['fields'] ?? []);
-
-        // Merge with custom OpenAPI request examples (custom examples override)
+        // Use custom OpenAPI request examples if defined, otherwise infer from validation fields
         $openapiRequest = $config['openapi_request'] ?? [];
 
         if (is_array($openapiRequest) && $openapiRequest !== []) {
-            $example = array_merge($example, $openapiRequest);
+            $example = $openapiRequest;
+        } else {
+            $example = $this->buildActionRequestExample($config['validation']['fields'] ?? []);
         }
 
         if ($example !== []) {
@@ -1938,14 +1937,13 @@ class OpenApiGenerator
             $schema['description'] = 'Payload accepted by the action. Rules enforced by the host application.';
         }
 
-        // Build base example from validation fields
-        $example = $this->buildActionRequestExample($actionData['validation']['fields'] ?? []);
-
-        // Merge with custom OpenAPI request examples (custom examples override)
+        // Use custom OpenAPI request examples if defined, otherwise infer from validation fields
         $openapiRequest = $actionData['openapi_request'] ?? [];
 
         if (is_array($openapiRequest) && $openapiRequest !== []) {
-            $example = array_merge($example, $openapiRequest);
+            $example = $openapiRequest;
+        } else {
+            $example = $this->buildActionRequestExample($actionData['validation']['fields'] ?? []);
         }
 
         if ($example !== []) {

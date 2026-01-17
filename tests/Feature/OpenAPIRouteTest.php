@@ -506,7 +506,7 @@ class OpenAPIRouteTest extends TestCase
         $this->assertTrue($requestBody['example']['notify_subscribers']);
     }
 
-    public function testOpenApiRequestExamplesOverrideValidationFields(): void
+    public function testOpenApiRequestExamplesReplacesValidationFields(): void
     {
         config()->set('query-gate.openAPI.enabled', true);
         config()->set('query-gate.models.' . Post::class, QueryGate::make()
@@ -520,8 +520,8 @@ class OpenAPIRouteTest extends TestCase
                     ])
                     ->openapiRequest([
                         'title' => 'Example Title',
-                        // 'content' not overridden - will be 'undefined'
                         'status' => 'draft',
+                        // 'content' not included - won't appear in example
                     ])
                 )
             )
@@ -549,8 +549,9 @@ class OpenAPIRouteTest extends TestCase
 
         $this->assertArrayHasKey('example', $schema);
         $this->assertSame('Example Title', $schema['example']['title']);
-        $this->assertSame('undefined', $schema['example']['content']); // Not overridden
         $this->assertSame('draft', $schema['example']['status']);
+        // content is not in openapiRequest, so it won't appear (no merge with validation fields)
+        $this->assertArrayNotHasKey('content', $schema['example']);
     }
 }
 
