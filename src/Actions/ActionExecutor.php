@@ -10,6 +10,7 @@ use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -266,9 +267,9 @@ class ActionExecutor
     /**
      * @param array<string, mixed> $configuration
      * @param array<string, mixed> $actionConfiguration
-     * @return array<string, mixed>
+     * @return array<string, mixed>|JsonResource
      */
-    protected function refreshAndFormat(Model $model, Request $request, array $configuration, array $actionConfiguration): array
+    protected function refreshAndFormat(Model $model, Request $request, array $configuration, array $actionConfiguration): array|JsonResource
     {
         $withoutQuery = $actionConfiguration['withoutQuery'] ?? false;
 
@@ -299,10 +300,16 @@ class ActionExecutor
 
     /**
      * @param array<string, mixed> $configuration
-     * @return array<string, mixed>
+     * @return array<string, mixed>|JsonResource
      */
-    protected function applySelectColumns(Model $model, array $configuration): array
+    protected function applySelectColumns(Model $model, array $configuration): array|JsonResource
     {
+        $resourceClass = $configuration['resource'] ?? null;
+
+        if (is_string($resourceClass) && class_exists($resourceClass) && is_subclass_of($resourceClass, JsonResource::class)) {
+            return new $resourceClass($model);
+        }
+
         $select = $configuration['select'] ?? null;
 
         if (!is_array($select) || $select === []) {
@@ -337,6 +344,11 @@ class ActionExecutor
     protected function formatResult($result, array $actionConfiguration, Request $request)
     {
         if ($result instanceof SymfonyResponse) {
+            return $result;
+        }
+
+        // Return JsonResource directly - let the framework handle the conversion
+        if ($result instanceof JsonResource) {
             return $result;
         }
 

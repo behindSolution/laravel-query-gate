@@ -5,11 +5,14 @@ namespace BehindSolution\LaravelQueryGate\Tests\Unit;
 use BehindSolution\LaravelQueryGate\Query\QueryContext;
 use BehindSolution\LaravelQueryGate\Query\QueryExecutor;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\PostResource;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\User;
+use BehindSolution\LaravelQueryGate\Tests\Fixtures\UserResource;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Mockery;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -393,6 +396,136 @@ class QueryExecutorTest extends TestCase
         $executor->execute($context, [
             'sorts' => ['title'],
         ]);
+    }
+
+    public function testExecuteReturnsResourceCollectionWhenConfigured(): void
+    {
+        Post::query()->create(['title' => 'First Post', 'status' => 'published']);
+        Post::query()->create(['title' => 'Second Post', 'status' => 'draft']);
+
+        $request = Request::create('/query', 'GET');
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'resource' => PostResource::class,
+        ]);
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertCount(2, $resourceData);
+        $this->assertArrayHasKey('id', $resourceData[0]);
+        $this->assertArrayHasKey('title', $resourceData[0]);
+        $this->assertArrayHasKey('formatted_title', $resourceData[0]);
+        $this->assertSame('First Post', $resourceData[0]['title']);
+        $this->assertSame('FIRST POST', $resourceData[0]['formatted_title']);
+    }
+
+    public function testExecuteReturnsResourceCollectionWithPagination(): void
+    {
+        Post::query()->create(['title' => 'Alpha', 'status' => 'published']);
+        Post::query()->create(['title' => 'Beta', 'status' => 'published']);
+
+        $request = Request::create('/query', 'GET');
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'resource' => PostResource::class,
+            'pagination' => [
+                'mode' => 'classic',
+            ],
+        ]);
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+
+        $response = $result->toResponse($request);
+        $data = json_decode($response->getContent(), true);
+
+        $this->assertArrayHasKey('data', $data);
+        $this->assertArrayHasKey('meta', $data);
+        $this->assertCount(2, $data['data']);
+        $this->assertSame('ALPHA', $data['data'][0]['formatted_title']);
+        $this->assertSame('BETA', $data['data'][1]['formatted_title']);
+    }
+
+    public function testExecuteResourceWithFilters(): void
+    {
+        Post::query()->create(['title' => 'Visible', 'status' => 'published']);
+        Post::query()->create(['title' => 'Hidden', 'status' => 'draft']);
+
+        $request = Request::create('/query', 'GET', [
+            'filter' => [
+                'status' => [
+                    'eq' => 'published',
+                ],
+            ],
+        ]);
+
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'resource' => PostResource::class,
+            'filters' => [
+                'status' => 'string',
+            ],
+        ]);
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertCount(1, $resourceData);
+        $this->assertSame('Visible', $resourceData[0]['title']);
+        $this->assertSame('VISIBLE', $resourceData[0]['formatted_title']);
+    }
+
+    public function testResourceTakesPrecedenceOverSelect(): void
+    {
+        Post::query()->create(['title' => 'Test Post', 'status' => 'active']);
+
+        $request = Request::create('/query', 'GET');
+        $context = new QueryContext(Post::class, $request, Post::query());
+
+        $executor = new QueryExecutor();
+
+        // When both resource and select are present, resource should take precedence
+        $result = $executor->execute($context, [
+            'resource' => PostResource::class,
+            'select' => ['id', 'title'], // This should be ignored
+        ]);
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+
+        $resourceData = $result->toArray($request);
+        // Resource should include formatted_title which wouldn't be in select
+        $this->assertArrayHasKey('formatted_title', $resourceData[0]);
+        $this->assertSame('TEST POST', $resourceData[0]['formatted_title']);
+    }
+
+    public function testExecuteWithUserResource(): void
+    {
+        User::query()->create(['name' => 'john doe']);
+
+        $request = Request::create('/query', 'GET');
+        $context = new QueryContext(User::class, $request, User::query());
+
+        $executor = new QueryExecutor();
+
+        $result = $executor->execute($context, [
+            'resource' => UserResource::class,
+        ]);
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+
+        $resourceData = $result->toArray($request);
+        $this->assertCount(1, $resourceData);
+        $this->assertSame('john doe', $resourceData[0]['name']);
+        $this->assertSame('John doe', $resourceData[0]['display_name']);
     }
 }
 
