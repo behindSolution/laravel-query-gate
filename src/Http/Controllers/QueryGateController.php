@@ -104,6 +104,11 @@ class QueryGateController
         $identifier = $request->route('identifier');
         $action = $request->route('action');
 
+        // 'detail' is not accessible via /{id}/detail route - use GET /{id} instead
+        if ($action === 'detail') {
+            throw new HttpException(404, 'Action not found.');
+        }
+
         return $this->executeAction($request, $action, $identifier);
     }
 

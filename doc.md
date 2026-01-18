@@ -859,7 +859,7 @@ QueryGate::make()
     );
 ```
 
-**Simplified route:** When `detail` is configured, you can access it directly at `GET /query/posts/{id}` instead of the longer `GET /query/posts/{id}/detail`. This provides a cleaner REST-like API while maintaining backwards compatibility with the explicit route.
+When `detail` is configured, access it at `GET /query/posts/{id}`. This provides a clean REST-like API.
 
 **Custom select and query for detail**
 
@@ -1036,13 +1036,13 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 |--------|-------|-------------|
 | `GET` | `/query/posts` | List with filters/sort/pagination |
 | `POST` | `/query/posts` | Create |
-| `GET` | `/query/posts/{id}` | Detail by route key (simplified) |
+| `GET` | `/query/posts/{id}` | Detail by route key |
 | `PATCH` | `/query/posts/{id}` | Update by route key |
 | `DELETE` | `/query/posts/{id}` | Delete by route key |
 | `*` | `/query/posts/{action}` | Custom action without model binding |
 | `*` | `/query/posts/{id}/{action}` | Custom action with model route binding |
 
-**Note:** The simplified `GET /query/posts/{id}` route automatically detects whether the `{id}` segment is a registered custom action name. If it matches an action (e.g., `fetch-all`), the action is executed. Otherwise, it calls the `detail` action with the value as the identifier.
+**Note:** The `GET /query/posts/{id}` route automatically detects whether the `{id}` segment is a registered custom action name. If it matches an action (e.g., `fetch-all`), the action is executed. Otherwise, it calls the `detail` action with the value as the identifier.
 
 The custom action routes honour the HTTP verb declared by `method()` in your action class. For example, a `publish` action with `method(): 'POST'` is accessible at `POST /query/posts/publish`, while an action that operates on a specific record (like `archive`) can be called at `POST /query/posts/123/archive`.
 
