@@ -41,9 +41,11 @@ class ActionExecutorTest extends TestCase
         $this->assertInstanceOf(JsonResponse::class, $response);
         $this->assertSame(202, $response->getStatusCode());
         $this->assertSame([
-            'handled' => true,
-            'payload' => [
-                'title' => 'Sample Title',
+            'data' => [
+                'handled' => true,
+                'payload' => [
+                    'title' => 'Sample Title',
+                ],
             ],
         ], $response->getData(true));
     }
@@ -84,7 +86,7 @@ class ActionExecutorTest extends TestCase
 
         $result = $executor->execute('archive', $request, Post::class, $definition);
 
-        $this->assertSame(['archived' => true], $result);
+        $this->assertSame(['data' => ['archived' => true]], $result);
     }
 
     public function testThrowsWhenCreateActionHasNoValidation(): void
@@ -185,7 +187,8 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('create', $request, Post::class, $definition);
 
         $this->assertIsArray($result);
-        $this->assertSame('Valid Title', $result['title']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertSame('Valid Title', $result['data']['title']);
     }
 
     public function testCreateReturnsOnlySelectColumns(): void
@@ -206,11 +209,12 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('create', $request, Post::class, $definition);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayNotHasKey('user_id', $result);
-        $this->assertArrayNotHasKey('status', $result);
-        $this->assertArrayNotHasKey('created_at', $result);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayNotHasKey('user_id', $result['data']);
+        $this->assertArrayNotHasKey('status', $result['data']);
+        $this->assertArrayNotHasKey('created_at', $result['data']);
     }
 
     public function testUpdateReturnsOnlySelectColumns(): void
@@ -233,12 +237,13 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertSame('Updated Title', $result['title']);
-        $this->assertArrayNotHasKey('user_id', $result);
-        $this->assertArrayNotHasKey('status', $result);
-        $this->assertArrayNotHasKey('created_at', $result);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertSame('Updated Title', $result['data']['title']);
+        $this->assertArrayNotHasKey('user_id', $result['data']);
+        $this->assertArrayNotHasKey('status', $result['data']);
+        $this->assertArrayNotHasKey('created_at', $result['data']);
     }
 
     public function testUpdateReturnsQueryComputedFieldsByDefault(): void
@@ -262,10 +267,11 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayHasKey('comments_count', $result);
-        $this->assertSame(0, $result['comments_count']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayHasKey('comments_count', $result['data']);
+        $this->assertSame(0, $result['data']['comments_count']);
     }
 
     public function testUpdateWithoutQueryDoesNotIncludeComputedFields(): void
@@ -292,10 +298,11 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('update', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
         // comments_count should be null because withoutQuery() was used
-        $this->assertNull($result['comments_count']);
+        $this->assertNull($result['data']['comments_count']);
     }
 
     public function testCreateReturnsQueryComputedFieldsByDefault(): void
@@ -317,10 +324,11 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('create', $request, Post::class, $definition);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayHasKey('comments_count', $result);
-        $this->assertSame(0, $result['comments_count']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayHasKey('comments_count', $result['data']);
+        $this->assertSame(0, $result['data']['comments_count']);
     }
 
     public function testCreateReturnsResourceWhenConfigured(): void
@@ -501,8 +509,9 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertSame($post->id, $result['id']);
-        $this->assertSame('Test Post', $result['title']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertSame($post->id, $result['data']['id']);
+        $this->assertSame('Test Post', $result['data']['title']);
     }
 
     public function testDetailActionReturnsOnlySelectColumns(): void
@@ -523,10 +532,11 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayNotHasKey('status', $result);
-        $this->assertArrayNotHasKey('created_at', $result);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayNotHasKey('status', $result['data']);
+        $this->assertArrayNotHasKey('created_at', $result['data']);
     }
 
     public function testDetailActionReturnsResourceWhenConfigured(): void
@@ -609,7 +619,8 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertSame('No Validation Post', $result['title']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertSame('No Validation Post', $result['data']['title']);
     }
 
     public function testDetailActionWithCustomHandler(): void
@@ -637,9 +648,10 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertTrue($result['custom']);
-        $this->assertSame($post->id, $result['post_id']);
-        $this->assertSame('Custom Handler Post', $result['post_title']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertTrue($result['data']['custom']);
+        $this->assertSame($post->id, $result['data']['post_id']);
+        $this->assertSame('Custom Handler Post', $result['data']['post_title']);
     }
 
     public function testDetailActionRespectsBaseQuery(): void
@@ -702,11 +714,12 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayHasKey('status', $result);
-        $this->assertSame('Test Post', $result['title']);
-        $this->assertSame('published', $result['status']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayHasKey('status', $result['data']);
+        $this->assertSame('Test Post', $result['data']['title']);
+        $this->assertSame('published', $result['data']['status']);
     }
 
     public function testDetailActionFallsBackToRootSelectWhenNotSpecified(): void
@@ -727,9 +740,10 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayNotHasKey('status', $result); // Uses root select
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayNotHasKey('status', $result['data']); // Uses root select
     }
 
     public function testDetailActionWithCustomResourceOverridesRootSelect(): void
@@ -785,7 +799,8 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $draftPost->id);
 
         $this->assertIsArray($result);
-        $this->assertSame('Draft Post', $result['title']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertSame('Draft Post', $result['data']['title']);
     }
 
     public function testDetailActionFallsBackToRootQueryWhenNotSpecified(): void
@@ -831,10 +846,11 @@ class ActionExecutorTest extends TestCase
         $result = $executor->execute('detail', $request, Post::class, $definition, (string) $post->id);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('id', $result);
-        $this->assertArrayHasKey('title', $result);
-        $this->assertArrayHasKey('status', $result);
-        $this->assertSame('Full Detail Post', $result['title']);
-        $this->assertSame('draft', $result['status']);
+        $this->assertArrayHasKey('data', $result);
+        $this->assertArrayHasKey('id', $result['data']);
+        $this->assertArrayHasKey('title', $result['data']);
+        $this->assertArrayHasKey('status', $result['data']);
+        $this->assertSame('Full Detail Post', $result['data']['title']);
+        $this->assertSame('draft', $result['data']['status']);
     }
 }

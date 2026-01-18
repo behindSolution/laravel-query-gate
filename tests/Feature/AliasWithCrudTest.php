@@ -69,9 +69,9 @@ class AliasWithCrudTest extends TestCase
         ]);
 
         $response->assertSuccessful();
-        $response->assertJsonStructure(['id', 'name', 'price']);
+        $response->assertJsonStructure(['data' => ['id', 'name', 'price']]);
 
-        $data = $response->json();
+        $data = $response->json('data');
         $this->assertTrue(Str::isUuid($data['id']));
         $this->assertSame('Test Product', $data['name']);
     }
@@ -202,9 +202,11 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson([
-            'approved' => true,
-            'comment_id' => $comment->id,
-            'comment_name' => 'Test Comment',
+            'data' => [
+                'approved' => true,
+                'comment_id' => $comment->id,
+                'comment_name' => 'Test Comment',
+            ],
         ]);
     }
 
@@ -236,9 +238,11 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson([
-            'approved' => true,
-            'comment_id' => $product->id,
-            'comment_name' => 'Product to Approve',
+            'data' => [
+                'approved' => true,
+                'comment_id' => $product->id,
+                'comment_name' => 'Product to Approve',
+            ],
         ]);
     }
 
@@ -269,6 +273,7 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonFragment(['title' => 'Detail Test Post']);
+        $response->assertJsonStructure(['data']);
     }
 
     public function testDetailPostReturnsOnlySelectColumns(): void
@@ -284,8 +289,8 @@ class AliasWithCrudTest extends TestCase
         $response = $this->getJson("/query/posts/{$post->id}");
 
         $response->assertStatus(200);
-        $response->assertJsonStructure(['id', 'title']);
-        $response->assertJsonMissing(['status']);
+        $response->assertJsonStructure(['data' => ['id', 'title']]);
+        $response->assertJsonMissing(['data' => ['status']]);
     }
 
     public function testDetailReturns404WhenModelNotFound(): void
@@ -316,6 +321,7 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonFragment(['name' => 'Detail Product']);
+        $response->assertJsonStructure(['data']);
     }
 
     public function testDetailProductReturns404WhenUuidNotFound(): void
@@ -350,8 +356,10 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson([
-            'custom_response' => true,
-            'post_title' => 'Custom Detail Post',
+            'data' => [
+                'custom_response' => true,
+                'post_title' => 'Custom Detail Post',
+            ],
         ]);
     }
 
@@ -370,7 +378,7 @@ class AliasWithCrudTest extends TestCase
         $response = $this->getJson("/query/posts/{$post->id}");
 
         $response->assertStatus(200);
-        $response->assertJsonStructure(['id', 'title', 'status']);
+        $response->assertJsonStructure(['data' => ['id', 'title', 'status']]);
         $response->assertJsonFragment(['title' => 'Detail Post', 'status' => 'published']);
     }
 
@@ -391,6 +399,7 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonFragment(['title' => 'Draft Post']);
+        $response->assertJsonStructure(['data']);
     }
 
     public function testDetailFallsBackToRootQueryWhenNotSpecified(): void
@@ -442,8 +451,10 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson([
-            'custom_action' => true,
-            'message' => 'This is a custom GET action',
+            'data' => [
+                'custom_action' => true,
+                'message' => 'This is a custom GET action',
+            ],
         ]);
     }
 
@@ -464,7 +475,8 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonFragment(['title' => 'Real Post']);
-        $response->assertJsonMissing(['custom' => true]);
+        $response->assertJsonMissing(['data' => ['custom' => true]]);
+        $response->assertJsonStructure(['data']);
     }
 
     public function testDetailRouteReturns405WhenDetailNotConfigured(): void

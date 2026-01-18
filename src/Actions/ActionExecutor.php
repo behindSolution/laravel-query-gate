@@ -395,17 +395,22 @@ class ActionExecutor
             return $result->toResponse($request);
         }
 
+        // Wrap arrays in 'data' key for consistency with JsonResource responses
+        if (is_array($result)) {
+            $result = ['data' => $result];
+        }
+
+        if ($result instanceof Arrayable) {
+            $result = ['data' => $result->toArray()];
+        }
+
         if (!isset($actionConfiguration['status'])) {
             return $result;
         }
 
         $status = (int) $actionConfiguration['status'];
 
-        if ($request->expectsJson() || $request->wantsJson() || is_array($result) || $result instanceof Arrayable) {
-            if ($result instanceof Arrayable) {
-                $result = $result->toArray();
-            }
-
+        if ($request->expectsJson() || $request->wantsJson() || is_array($result)) {
             return response()->json($result, $status);
         }
 
