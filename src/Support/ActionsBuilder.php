@@ -37,6 +37,13 @@ class ActionsBuilder implements Arrayable
         return $this;
     }
 
+    public function detail(?callable $callback = null): self
+    {
+        $this->assignAction('detail', $callback);
+
+        return $this;
+    }
+
     public function use(string $actionClass): self
     {
         $instance = $this->makeActionInstance($actionClass);
@@ -123,6 +130,7 @@ class ActionsBuilder implements Arrayable
             'create' => 'POST',
             'update' => 'PATCH',
             'delete' => 'DELETE',
+            'detail' => 'GET',
             default => 'POST',
         };
     }

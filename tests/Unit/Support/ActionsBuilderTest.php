@@ -84,4 +84,31 @@ class ActionsBuilderTest extends TestCase
         $this->assertSame('Example Title', $actions['create']['openapi_request']['title']);
         $this->assertSame('Example Content', $actions['create']['openapi_request']['content']);
     }
+
+    public function testDetailActionDefaultsToGet(): void
+    {
+        $builder = new ActionsBuilder();
+
+        $builder->detail();
+
+        $actions = $builder->toArray();
+
+        $this->assertArrayHasKey('detail', $actions);
+        $this->assertSame('GET', $actions['detail']['method']);
+    }
+
+    public function testDetailActionWithCallback(): void
+    {
+        $builder = new ActionsBuilder();
+
+        $builder->detail(fn ($action) => $action
+            ->policy('view')
+        );
+
+        $actions = $builder->toArray();
+
+        $this->assertArrayHasKey('detail', $actions);
+        $this->assertSame('GET', $actions['detail']['method']);
+        $this->assertSame(['view'], $actions['detail']['policy']);
+    }
 }

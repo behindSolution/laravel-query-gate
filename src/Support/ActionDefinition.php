@@ -31,6 +31,13 @@ class ActionDefinition implements Arrayable
      */
     protected array $openapiRequestExamples = [];
 
+    /**
+     * @var array<int, string>|string|null
+     */
+    protected array|string|null $select = null;
+
+    protected ?Closure $query = null;
+
     public function validations(array $rules): self
     {
         $this->validation = $rules;
@@ -125,6 +132,30 @@ class ActionDefinition implements Arrayable
         return $this;
     }
 
+    /**
+     * Set custom select columns or Resource class for this action.
+     *
+     * @param array<int, string>|string $columns
+     */
+    public function select(array|string $columns): self
+    {
+        $this->select = $columns;
+
+        return $this;
+    }
+
+    /**
+     * Set custom query callback for this action.
+     */
+    public function query(callable $callback): self
+    {
+        $this->query = $callback instanceof Closure
+            ? $callback
+            : Closure::fromCallable($callback);
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         $data = array_filter([
@@ -135,6 +166,8 @@ class ActionDefinition implements Arrayable
             'status' => $this->status,
             'name' => $this->name,
             'method' => $this->method,
+            'select' => $this->select,
+            'query' => $this->query,
         ], static function ($value) {
             return $value !== null;
         });

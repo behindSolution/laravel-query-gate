@@ -37,6 +37,7 @@ class ActionExecutor
             $request,
             $modelClass,
             $configuration,
+            $actionConfiguration,
             $identifier
         );
 
@@ -47,7 +48,7 @@ class ActionExecutor
 
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
             $result = $actionConfiguration['handle']($request, $model, $payload);
-        } elseif (in_array($action, ['create', 'update', 'delete'], true)) {
+        } elseif (in_array($action, ['create', 'update', 'delete', 'detail'], true)) {
             $result = $this->defaultHandle($action, $request, $model, $payload, $configuration, $actionConfiguration);
         } else {
             throw new HttpException(500, sprintf('No handler defined for action "%s".', $action));
@@ -87,12 +88,14 @@ class ActionExecutor
 
     /**
      * @param array<string, mixed> $configuration
+     * @param array<string, mixed> $actionConfiguration
      */
     protected function resolveModelInstance(
         string $action,
         Request $request,
         string $modelClass,
         array $configuration,
+        array $actionConfiguration,
         ?string $identifier
     ): Model {
         /** @var Model $instance */
@@ -102,7 +105,7 @@ class ActionExecutor
             return $instance;
         }
 
-        $requiresModel = in_array($action, ['update', 'delete'], true);
+        $requiresModel = in_array($action, ['update', 'delete', 'detail'], true);
         $hasIdentifier = $identifier !== null && $identifier !== '';
 
         if (!$requiresModel && !$hasIdentifier) {
@@ -113,9 +116,12 @@ class ActionExecutor
             throw new HttpException(400, 'A valid identifier is required for this action.');
         }
 
+        // Use action-specific query if available, fallback to root query
+        $queryCallback = $actionConfiguration['query'] ?? $configuration['query'] ?? null;
+
         $builder = $this->applyBaseQuery(
             $instance->newQuery(),
-            $configuration['query'] ?? null,
+            $queryCallback,
             $request
         );
 
@@ -259,9 +265,42 @@ class ActionExecutor
                 $model->delete();
 
                 return response()->noContent();
+            case 'detail':
+                $effectiveConfig = $this->buildEffectiveConfigForDetail($configuration, $actionConfiguration);
+
+                return $this->applySelectColumns($model, $effectiveConfig);
             default:
                 return $model;
         }
+    }
+
+    /**
+     * Build effective configuration for detail action with action-specific overrides.
+     *
+     * @param array<string, mixed> $configuration
+     * @param array<string, mixed> $actionConfiguration
+     * @return array<string, mixed>
+     */
+    protected function buildEffectiveConfigForDetail(array $configuration, array $actionConfiguration): array
+    {
+        $effectiveConfig = $configuration;
+
+        // Check if action has its own select (can be array or Resource class string)
+        if (isset($actionConfiguration['select'])) {
+            $actionSelect = $actionConfiguration['select'];
+
+            if (is_string($actionSelect) && class_exists($actionSelect) && is_subclass_of($actionSelect, JsonResource::class)) {
+                // Action select is a Resource class
+                $effectiveConfig['resource'] = $actionSelect;
+                unset($effectiveConfig['select']);
+            } else {
+                // Action select is an array of columns
+                $effectiveConfig['select'] = $actionSelect;
+                unset($effectiveConfig['resource']);
+            }
+        }
+
+        return $effectiveConfig;
     }
 
     /**
@@ -399,6 +438,7 @@ class ActionExecutor
             'create' => 'POST',
             'update' => 'PATCH',
             'delete' => 'DELETE',
+            'detail' => 'GET',
             default => 'POST',
         };
     }

@@ -234,7 +234,13 @@ class QueryExecutor
             || ($result instanceof CursorPaginatorContract)
             || ($result instanceof PaginatorContract)
         ) {
-            return $resourceClass::collection($result);
+            $transformed = $result->getCollection()->map(function ($item) use ($resourceClass) {
+                return (new $resourceClass($item))->resolve();
+            });
+
+            $result->setCollection($transformed);
+
+            return $result;
         }
 
         if ($result instanceof Collection) {
