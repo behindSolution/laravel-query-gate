@@ -1021,8 +1021,15 @@ class OpenApiGenerator
                     'application/json' => [
                         'schema' => [
                             'type' => 'object',
+                            'properties' => [
+                                'data' => [
+                                    'type' => 'object',
+                                ],
+                            ],
                         ],
-                        'example' => $this->buildRecordExample($model),
+                        'example' => [
+                            'data' => $this->buildRecordExample($model),
+                        ],
                     ],
                 ],
             ],
@@ -1179,8 +1186,15 @@ class OpenApiGenerator
                             'schema' => [
                                 'type' => 'object',
                                 'description' => 'The shape depends on the selected model and configured resource/select.',
+                                'properties' => [
+                                    'data' => [
+                                        'type' => 'object',
+                                    ],
+                                ],
                             ],
-                            'example' => $this->buildRecordExample($model),
+                            'example' => [
+                                'data' => $this->buildRecordExample($model),
+                            ],
                         ],
                     ],
                 ],
@@ -1789,8 +1803,15 @@ class OpenApiGenerator
                         'application/json' => [
                             'schema' => [
                                 'type' => 'object',
+                                'properties' => [
+                                    'data' => [
+                                        'type' => 'object',
+                                    ],
+                                ],
                             ],
-                            'example' => $this->buildRecordExample($model),
+                            'example' => [
+                                'data' => $this->buildRecordExample($model),
+                            ],
                         ],
                     ],
                 ],
@@ -1805,8 +1826,15 @@ class OpenApiGenerator
                         'application/json' => [
                             'schema' => [
                                 'type' => 'object',
+                                'properties' => [
+                                    'data' => [
+                                        'type' => 'object',
+                                    ],
+                                ],
                             ],
-                            'example' => $this->buildRecordExample($model),
+                            'example' => [
+                                'data' => $this->buildRecordExample($model),
+                            ],
                         ],
                     ],
                 ],
