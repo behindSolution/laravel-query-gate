@@ -307,7 +307,7 @@ class OpenApiGenerator
 
             $validation = $this->buildValidationSchema($configuration['validation'] ?? []);
 
-            $isBuiltIn = in_array($action, ['create', 'update', 'delete'], true);
+            $isBuiltIn = in_array($action, ['create', 'update', 'delete', 'detail'], true);
             $method = $this->resolveActionMethod($action, $configuration);
 
             $actions[$action] = [
@@ -342,6 +342,7 @@ class OpenApiGenerator
             'create' => 'POST',
             'update' => 'PATCH',
             'delete' => 'DELETE',
+            'detail' => 'GET',
             default => 'POST',
         };
     }
@@ -356,7 +357,7 @@ class OpenApiGenerator
             return false;
         }
 
-        if (in_array($action, ['update', 'delete'], true)) {
+        if (in_array($action, ['update', 'delete', 'detail'], true)) {
             return true;
         }
 
@@ -834,7 +835,7 @@ class OpenApiGenerator
                     $paths[$listPath] = $this->buildModelListPathItem($model, $tag, $openApiConfig, $identifier);
                 }
 
-                if ($this->modelHasAction($model, 'update') || $this->modelHasAction($model, 'delete') || $this->modelHasCustomActionsWithIdentifier($model)) {
+                if ($this->modelHasAction($model, 'detail') || $this->modelHasAction($model, 'update') || $this->modelHasAction($model, 'delete') || $this->modelHasCustomActionsWithIdentifier($model)) {
                     $detailPath = $listPath === '/' ? '/{id}' : rtrim($listPath, '/') . '/{id}';
 
                     if (!isset($paths[$detailPath])) {
@@ -1107,6 +1108,9 @@ class OpenApiGenerator
 
         return array_filter([
             'parameters' => array_values(array_filter($pathParameters, static fn ($value) => $value !== null)),
+            'get' => $this->modelHasAction($model, 'detail')
+                ? $this->buildModelDetailOperation($model, $tag, $openApiConfig)
+                : null,
             'patch' => $this->modelHasAction($model, 'update')
                 ? $this->buildModelActionOperation('update', $model, $tag, $openApiConfig)
                 : null,
@@ -1153,6 +1157,35 @@ class OpenApiGenerator
                             'example' => $this->buildListResponseExample($model),
                         ],
                     ],
+                ],
+            ],
+            'security' => $this->buildSecurityRequirement($openApiConfig),
+        ]);
+    }
+
+    protected function buildModelDetailOperation(array $model, string $tag, array $openApiConfig): array
+    {
+        $singular = $this->resolveModelSingularName($model);
+
+        return $this->removeEmptyValues([
+            'summary' => 'Get ' . $singular,
+            'description' => 'Returns a single ' . strtolower($singular) . ' by identifier via Query Gate.',
+            'tags' => [$tag],
+            'responses' => [
+                '200' => [
+                    'description' => 'Successful response.',
+                    'content' => [
+                        'application/json' => [
+                            'schema' => [
+                                'type' => 'object',
+                                'description' => 'The shape depends on the selected model and configured resource/select.',
+                            ],
+                            'example' => $this->buildRecordExample($model),
+                        ],
+                    ],
+                ],
+                '404' => [
+                    'description' => 'Model not found.',
                 ],
             ],
             'security' => $this->buildSecurityRequirement($openApiConfig),
@@ -1253,11 +1286,42 @@ class OpenApiGenerator
 
     protected function buildListResponseExample(array $model): array
     {
-        return [
+        $example = [
             'data' => [
                 $this->buildRecordExample($model),
             ],
         ];
+
+        $pagination = $model['pagination'] ?? null;
+        $mode = $pagination['mode'] ?? 'classic';
+
+        if ($mode === 'cursor') {
+            $example['path'] = 'https://example.com/query/model';
+            $example['per_page'] = $pagination['per_page'] ?? 15;
+            $example['next_cursor'] = 'eyJpZCI6MTAsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0';
+            $example['next_page_url'] = 'https://example.com/query/model?cursor=eyJpZCI6MTAsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0';
+            $example['prev_cursor'] = null;
+            $example['prev_page_url'] = null;
+        } elseif ($mode !== 'none') {
+            $example['current_page'] = 1;
+            $example['first_page_url'] = 'https://example.com/query/model?page=1';
+            $example['from'] = 1;
+            $example['last_page'] = 1;
+            $example['last_page_url'] = 'https://example.com/query/model?page=1';
+            $example['links'] = [
+                ['url' => null, 'label' => '&laquo; Previous', 'active' => false],
+                ['url' => 'https://example.com/query/model?page=1', 'label' => '1', 'active' => true],
+                ['url' => null, 'label' => 'Next &raquo;', 'active' => false],
+            ];
+            $example['next_page_url'] = null;
+            $example['path'] = 'https://example.com/query/model';
+            $example['per_page'] = $pagination['per_page'] ?? 15;
+            $example['prev_page_url'] = null;
+            $example['to'] = 1;
+            $example['total'] = 1;
+        }
+
+        return $example;
     }
 
     protected function buildRecordExample(array $model): array
