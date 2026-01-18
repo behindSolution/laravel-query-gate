@@ -5,6 +5,7 @@ namespace BehindSolution\LaravelQueryGate\Traits;
 use BehindSolution\LaravelQueryGate\Concerns\AppliesPagination;
 use BehindSolution\LaravelQueryGate\Query\QueryContext;
 use BehindSolution\LaravelQueryGate\Support\PaginationResolver;
+use Illuminate\Database\Eloquent\Builder;
 
 trait HasPagination
 {
@@ -41,7 +42,43 @@ trait HasPagination
             is_string($cursor) ? $cursor : null
         );
 
+        // Add primary key as tiebreaker for cursor pagination
+        if ($config['type'] === 'cursor') {
+            $this->ensurePrimaryKeyInOrder($context->query);
+        }
+
         return $this->paginationApplier()->apply($context->query, $config);
+    }
+
+    /**
+     * Ensure the primary key is included in the ORDER BY clause for cursor pagination.
+     * This prevents issues when multiple records have the same value for the sort column.
+     */
+    protected function ensurePrimaryKeyInOrder(Builder $query): void
+    {
+        $model = $query->getModel();
+        $keyName = $model->getKeyName();
+        $qualifiedKeyName = $model->qualifyColumn($keyName);
+
+        // Check if primary key is already in the order
+        $orders = $query->getQuery()->orders ?? [];
+
+        foreach ($orders as $order) {
+            $column = $order['column'] ?? null;
+
+            if ($column === $keyName || $column === $qualifiedKeyName) {
+                return;
+            }
+        }
+
+        // Determine direction based on existing orders (default to desc if no orders)
+        $direction = 'desc';
+        if (!empty($orders)) {
+            $lastOrder = end($orders);
+            $direction = $lastOrder['direction'] ?? 'desc';
+        }
+
+        $query->orderBy($qualifiedKeyName, $direction);
     }
 
     protected function paginationResolver(): PaginationResolver

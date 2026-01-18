@@ -84,7 +84,17 @@ class QueryExecutorTest extends TestCase
 
     public function testExecuteUsesConfiguredPaginationModeWhenRequestOmitsIt(): void
     {
+        $model = Mockery::mock(Post::class);
+        $model->shouldReceive('getKeyName')->andReturn('id');
+        $model->shouldReceive('qualifyColumn')->with('id')->andReturn('posts.id');
+
+        $baseQuery = Mockery::mock(\Illuminate\Database\Query\Builder::class);
+        $baseQuery->orders = [];
+
         $builder = Mockery::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn($model);
+        $builder->shouldReceive('getQuery')->andReturn($baseQuery);
+        $builder->shouldReceive('orderBy')->with('posts.id', 'desc')->andReturnSelf();
         $builder->shouldReceive('cursorPaginate')
             ->once()
             ->with(15, ['*'], 'cursor', null)
