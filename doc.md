@@ -751,7 +751,7 @@ QueryGate::make()
 
 ## Actions
 
-Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`) can be customised:
+Models can optionally expose mutable operations by chaining `->actions()` on the builder. Inside the callback you receive an `ActionsBuilder` instance where each action (`create`, `update`, `delete`, `detail`) can be customised:
 
 - `->validations([...])` applies validation rules before handling the payload.
 - `->policy('ability')` or `->policy(['ability', 'another'])` runs Laravel's policy pipeline (via `Gate::authorize`) for the resolved model.
@@ -778,8 +778,63 @@ Omitting the callback keeps the default behaviour for that action.
     )
     ->update()
     ->delete(fn ($action) => $action->policy('delete'))
+    ->detail()
 )
 ```
+
+#### Detail action
+
+The `detail` action provides a dedicated endpoint for retrieving a single record by its identifier. Unlike the list endpoint, `detail` can expose more information about a specific record.
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->select(['id', 'title'])  // List shows minimal fields
+    ->actions(fn ($actions) => $actions
+        ->detail()  // GET /query/posts/{id}/detail
+    );
+```
+
+**Custom select and query for detail**
+
+The `detail` action supports its own `->select()` and `->query()` methods, allowing you to return more data than the listing endpoint. If not specified, it falls back to the root configuration.
+
+```php
+QueryGate::make()
+    ->alias('posts')
+    ->select(['id', 'title'])  // List shows only id and title
+    ->query(fn ($query) => $query->where('status', 'published'))  // List shows only published
+    ->actions(fn ($actions) => $actions
+        ->detail(fn ($action) => $action
+            ->select(['id', 'title', 'content', 'status', 'author', 'created_at'])  // Detail shows more fields
+            ->query(fn ($query) => $query->with(['author', 'tags']))  // Detail loads relations
+        )
+    );
+```
+
+You can also use a Resource class for the detail response:
+
+```php
+use App\Http\Resources\PostDetailResource;
+
+QueryGate::make()
+    ->alias('posts')
+    ->select(['id', 'title'])  // List uses array
+    ->actions(fn ($actions) => $actions
+        ->detail(fn ($action) => $action
+            ->select(PostDetailResource::class)  // Detail uses Resource
+            ->policy('view')
+        )
+    );
+```
+
+The `detail` action:
+
+- Uses HTTP method `GET` by default
+- Requires an identifier (returns 404 if not found)
+- Does not require validation rules (read-only operation)
+- Does not invalidate cache (read-only operation)
+- Supports `->policy()`, `->authorize()`, and `->handle()` like other actions
 
 #### Returning Resources from handle()
 
@@ -907,6 +962,7 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 | `POST` | `/query?model=App\Models\Post` | Create (requires `actions.create`) |
 | `PATCH` | `/query/{id}?model=App\Models\Post` | Update by route key (requires `actions.update`) |
 | `DELETE` | `/query/{id}?model=App\Models\Post` | Delete by route key (requires `actions.delete`) |
+| `GET` | `/query/{id}/detail?model=App\Models\Post` | Detail by route key (requires `actions.detail`) |
 
 **Alias-based endpoints** (when `->alias('posts')` is configured):
 
@@ -916,6 +972,7 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 | `POST` | `/query/posts` | Create |
 | `PATCH` | `/query/posts/{id}` | Update by route key |
 | `DELETE` | `/query/posts/{id}` | Delete by route key |
+| `GET` | `/query/posts/{id}/detail` | Detail by route key |
 | `*` | `/query/posts/{action}` | Custom action without model binding |
 | `*` | `/query/posts/{id}/{action}` | Custom action with model route binding |
 

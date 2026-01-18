@@ -412,15 +412,15 @@ class QueryExecutorTest extends TestCase
             'resource' => PostResource::class,
         ]);
 
-        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
 
-        $resourceData = $result->toArray($request);
-        $this->assertCount(2, $resourceData);
-        $this->assertArrayHasKey('id', $resourceData[0]);
-        $this->assertArrayHasKey('title', $resourceData[0]);
-        $this->assertArrayHasKey('formatted_title', $resourceData[0]);
-        $this->assertSame('First Post', $resourceData[0]['title']);
-        $this->assertSame('FIRST POST', $resourceData[0]['formatted_title']);
+        $data = $result->toArray();
+        $this->assertCount(2, $data['data']);
+        $this->assertArrayHasKey('id', $data['data'][0]);
+        $this->assertArrayHasKey('title', $data['data'][0]);
+        $this->assertArrayHasKey('formatted_title', $data['data'][0]);
+        $this->assertSame('First Post', $data['data'][0]['title']);
+        $this->assertSame('FIRST POST', $data['data'][0]['formatted_title']);
     }
 
     public function testExecuteReturnsResourceCollectionWithPagination(): void
@@ -440,13 +440,13 @@ class QueryExecutorTest extends TestCase
             ],
         ]);
 
-        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
 
-        $response = $result->toResponse($request);
-        $data = json_decode($response->getContent(), true);
+        $data = $result->toArray();
 
         $this->assertArrayHasKey('data', $data);
-        $this->assertArrayHasKey('meta', $data);
+        $this->assertArrayHasKey('current_page', $data);
+        $this->assertArrayHasKey('total', $data);
         $this->assertCount(2, $data['data']);
         $this->assertSame('ALPHA', $data['data'][0]['formatted_title']);
         $this->assertSame('BETA', $data['data'][1]['formatted_title']);
@@ -476,12 +476,12 @@ class QueryExecutorTest extends TestCase
             ],
         ]);
 
-        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
 
-        $resourceData = $result->toArray($request);
-        $this->assertCount(1, $resourceData);
-        $this->assertSame('Visible', $resourceData[0]['title']);
-        $this->assertSame('VISIBLE', $resourceData[0]['formatted_title']);
+        $data = $result->toArray();
+        $this->assertCount(1, $data['data']);
+        $this->assertSame('Visible', $data['data'][0]['title']);
+        $this->assertSame('VISIBLE', $data['data'][0]['formatted_title']);
     }
 
     public function testResourceTakesPrecedenceOverSelect(): void
@@ -499,12 +499,12 @@ class QueryExecutorTest extends TestCase
             'select' => ['id', 'title'], // This should be ignored
         ]);
 
-        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
 
-        $resourceData = $result->toArray($request);
+        $data = $result->toArray();
         // Resource should include formatted_title which wouldn't be in select
-        $this->assertArrayHasKey('formatted_title', $resourceData[0]);
-        $this->assertSame('TEST POST', $resourceData[0]['formatted_title']);
+        $this->assertArrayHasKey('formatted_title', $data['data'][0]);
+        $this->assertSame('TEST POST', $data['data'][0]['formatted_title']);
     }
 
     public function testExecuteWithUserResource(): void
@@ -520,12 +520,12 @@ class QueryExecutorTest extends TestCase
             'resource' => UserResource::class,
         ]);
 
-        $this->assertInstanceOf(AnonymousResourceCollection::class, $result);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
 
-        $resourceData = $result->toArray($request);
-        $this->assertCount(1, $resourceData);
-        $this->assertSame('john doe', $resourceData[0]['name']);
-        $this->assertSame('John doe', $resourceData[0]['display_name']);
+        $data = $result->toArray();
+        $this->assertCount(1, $data['data']);
+        $this->assertSame('john doe', $data['data'][0]['name']);
+        $this->assertSame('John doe', $data['data'][0]['display_name']);
     }
 }
 

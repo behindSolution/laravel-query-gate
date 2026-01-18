@@ -254,4 +254,171 @@ class AliasWithCrudTest extends TestCase
 
         $response->assertStatus(405);
     }
+
+    public function testDetailPostWithAliasAndNumericId(): void
+    {
+        $post = Post::create(['title' => 'Detail Test Post']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson("/query/posts/{$post->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['title' => 'Detail Test Post']);
+    }
+
+    public function testDetailPostReturnsOnlySelectColumns(): void
+    {
+        $post = Post::create(['title' => 'Select Test Post', 'status' => 'published']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(['id', 'title'])
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson("/query/posts/{$post->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['id', 'title']);
+        $response->assertJsonMissing(['status']);
+    }
+
+    public function testDetailReturns404WhenModelNotFound(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson('/query/posts/99999/detail');
+
+        $response->assertStatus(404);
+    }
+
+    public function testDetailProductWithAliasAndUuid(): void
+    {
+        $product = Product::create([
+            'name' => 'Detail Product',
+            'price' => 150.00,
+        ]);
+
+        config()->set('query-gate.models.' . Product::class, QueryGate::make()
+            ->alias('products')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson("/query/products/{$product->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['name' => 'Detail Product']);
+    }
+
+    public function testDetailProductReturns404WhenUuidNotFound(): void
+    {
+        $fakeUuid = Str::uuid()->toString();
+
+        config()->set('query-gate.models.' . Product::class, QueryGate::make()
+            ->alias('products')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson("/query/products/{$fakeUuid}/detail");
+
+        $response->assertStatus(404);
+    }
+
+    public function testDetailReturns405WhenMethodDoesNotMatch(): void
+    {
+        $post = Post::create(['title' => 'Test Post']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->postJson("/query/posts/{$post->id}/detail");
+
+        $response->assertStatus(405);
+    }
+
+    public function testDetailWithCustomHandler(): void
+    {
+        $post = Post::create(['title' => 'Custom Detail Post']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail(fn ($action) => $action
+                ->handle(fn ($request, $model, $payload) => [
+                    'custom_response' => true,
+                    'post_title' => $model->title,
+                ])
+            ))
+        );
+
+        $response = $this->getJson("/query/posts/{$post->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'custom_response' => true,
+            'post_title' => 'Custom Detail Post',
+        ]);
+    }
+
+    public function testDetailWithCustomSelectOverridesRootSelect(): void
+    {
+        $post = Post::create(['title' => 'Detail Post', 'status' => 'published']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->select(['id']) // Root only has id
+            ->actions(fn ($actions) => $actions->detail(fn ($action) => $action
+                ->select(['id', 'title', 'status']) // Detail has more
+            ))
+        );
+
+        $response = $this->getJson("/query/posts/{$post->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['id', 'title', 'status']);
+        $response->assertJsonFragment(['title' => 'Detail Post', 'status' => 'published']);
+    }
+
+    public function testDetailWithCustomQueryOverridesRootQuery(): void
+    {
+        $draftPost = Post::create(['title' => 'Draft Post', 'status' => 'draft']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->query(fn ($query) => $query->where('status', 'published')) // Root filters published
+            ->actions(fn ($actions) => $actions->detail(fn ($action) => $action
+                ->query(fn ($query) => $query) // Detail allows all
+            ))
+        );
+
+        // Should find draft post because detail has its own query
+        $response = $this->getJson("/query/posts/{$draftPost->id}/detail");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['title' => 'Draft Post']);
+    }
+
+    public function testDetailFallsBackToRootQueryWhenNotSpecified(): void
+    {
+        $draftPost = Post::create(['title' => 'Draft Post', 'status' => 'draft']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->query(fn ($query) => $query->where('status', 'published'))
+            ->actions(fn ($actions) => $actions->detail()) // No custom query
+        );
+
+        // Should not find draft post because it uses root query
+        $response = $this->getJson("/query/posts/{$draftPost->id}/detail");
+
+        $response->assertStatus(404);
+    }
 }
