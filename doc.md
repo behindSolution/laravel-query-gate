@@ -662,7 +662,71 @@ You can choose between three pagination modes (`classic`, `cursor`, or `none`) b
 QueryGate::make()->paginationMode('cursor'); // classic is the default
 ```
 
-When you disable pagination (`none`), the full collection is returned. In `cursor` mode you must pass the `cursor` token supplied by the previous response. In `classic` mode the package delegates to Laravel's `paginate()` with the configured `per_page` size (defaults defined in `config/query-gate.php` or overridden per-model).
+When you disable pagination (`none`), the full collection is returned wrapped in a `data` key for consistency. In `cursor` mode you must pass the `cursor` token supplied by the previous response. In `classic` mode the package delegates to Laravel's `paginate()` with the configured `per_page` size (defaults defined in `config/query-gate.php` or overridden per-model).
+
+#### Consistent Response Format
+
+All pagination modes return a consistent response format with pagination metadata at the root level:
+
+**Classic pagination:**
+```json
+{
+    "data": [...],
+    "current_page": 1,
+    "first_page_url": "https://example.com/query/posts?page=1",
+    "from": 1,
+    "last_page": 5,
+    "last_page_url": "https://example.com/query/posts?page=5",
+    "links": [...],
+    "next_page_url": "https://example.com/query/posts?page=2",
+    "path": "https://example.com/query/posts",
+    "per_page": 15,
+    "prev_page_url": null,
+    "to": 15,
+    "total": 75
+}
+```
+
+**Cursor pagination:**
+```json
+{
+    "data": [...],
+    "path": "https://example.com/query/posts",
+    "per_page": 15,
+    "next_cursor": "eyJpZCI6MTAsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0",
+    "next_page_url": "https://example.com/query/posts?cursor=eyJ...",
+    "prev_cursor": null,
+    "prev_page_url": null
+}
+```
+
+**No pagination (`none`):**
+```json
+{
+    "data": [...]
+}
+```
+
+This consistent format is maintained regardless of whether you use `->select()` with an array of columns or a Resource class.
+
+#### Cursor Pagination and Primary Key
+
+When using cursor pagination, Query Gate automatically includes the primary key in the ORDER BY clause as a tiebreaker. This ensures correct pagination even when multiple records share the same value for the sort column:
+
+```
+GET /query/posts?sort=created_at:desc
+```
+
+The cursor will include both the sort column and the primary key:
+```json
+{
+    "created_at": "2024-01-15T10:00:00.000000Z",
+    "id": 42,
+    "_pointsToNextItems": true
+}
+```
+
+This prevents issues with backward navigation when records have identical sort values.
 
 ### Caching
 
@@ -791,9 +855,11 @@ QueryGate::make()
     ->alias('posts')
     ->select(['id', 'title'])  // List shows minimal fields
     ->actions(fn ($actions) => $actions
-        ->detail()  // GET /query/posts/{id}/detail
+        ->detail()  // GET /query/posts/{id}
     );
 ```
+
+**Simplified route:** When `detail` is configured, you can access it directly at `GET /query/posts/{id}` instead of the longer `GET /query/posts/{id}/detail`. This provides a cleaner REST-like API while maintaining backwards compatibility with the explicit route.
 
 **Custom select and query for detail**
 
@@ -962,7 +1028,7 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 | `POST` | `/query?model=App\Models\Post` | Create (requires `actions.create`) |
 | `PATCH` | `/query/{id}?model=App\Models\Post` | Update by route key (requires `actions.update`) |
 | `DELETE` | `/query/{id}?model=App\Models\Post` | Delete by route key (requires `actions.delete`) |
-| `GET` | `/query/{id}/detail?model=App\Models\Post` | Detail by route key (requires `actions.detail`) |
+| `GET` | `/query/{id}?model=App\Models\Post` | Detail by route key (requires `actions.detail`) |
 
 **Alias-based endpoints** (when `->alias('posts')` is configured):
 
@@ -970,11 +1036,13 @@ The command creates `app/Actions/QueryGate/DoPayment.php` with all optional meth
 |--------|-------|-------------|
 | `GET` | `/query/posts` | List with filters/sort/pagination |
 | `POST` | `/query/posts` | Create |
+| `GET` | `/query/posts/{id}` | Detail by route key (simplified) |
 | `PATCH` | `/query/posts/{id}` | Update by route key |
 | `DELETE` | `/query/posts/{id}` | Delete by route key |
-| `GET` | `/query/posts/{id}/detail` | Detail by route key |
 | `*` | `/query/posts/{action}` | Custom action without model binding |
 | `*` | `/query/posts/{id}/{action}` | Custom action with model route binding |
+
+**Note:** The simplified `GET /query/posts/{id}` route automatically detects whether the `{id}` segment is a registered custom action name. If it matches an action (e.g., `fetch-all`), the action is executed. Otherwise, it calls the `detail` action with the value as the identifier.
 
 The custom action routes honour the HTTP verb declared by `method()` in your action class. For example, a `publish` action with `method(): 'POST'` is accessible at `POST /query/posts/publish`, while an action that operates on a specific record (like `archive`) can be called at `POST /query/posts/123/archive`.
 
@@ -985,6 +1053,191 @@ If you leave `actions` undefined or omit a specific action, the corresponding en
 ## Middleware Pipeline
 
 Query Gate resolves the configured model, then runs any middleware defined in `config/query-gate.php` for that model before executing the query. Use this to enforce authentication, tenancy, throttling, or custom guards per dataset.
+
+## Frontend SDK
+
+Query Gate provides an official TypeScript SDK for frontend applications. It offers a contract-driven, type-safe way to interact with your Query Gate API.
+
+### Installation
+
+```bash
+npm install laravel-query-gate-sdk
+# or
+yarn add laravel-query-gate-sdk
+# or
+pnpm add laravel-query-gate-sdk
+```
+
+GitHub: [https://github.com/behindSolution/laravel-query-gate-sdk](https://github.com/behindSolution/laravel-query-gate-sdk)
+
+### Features
+
+- **Contract-Driven**: One contract per resource defines all operations
+- **Type-Safe**: Full TypeScript support with compile-time validation
+- **Fluent API**: Chainable, immutable builder pattern
+- **Laravel-Native Error Handling**: Built-in support for all Laravel error responses
+- **Zero Runtime Overhead**: Contracts exist only for TypeScript, no reflection
+- **Framework Agnostic**: Works with React, Vue, Angular, Svelte, or Node.js
+
+### Configuration
+
+```typescript
+import { configureQueryGate, queryGate } from 'laravel-query-gate-sdk'
+
+// Global configuration
+configureQueryGate({
+  baseUrl: 'https://api.example.com/query',
+  defaultHeaders: {
+    'Authorization': 'Bearer token',
+  },
+  defaultFetchOptions: {
+    credentials: 'include',
+    mode: 'cors',
+  },
+})
+```
+
+For multi-tenant or isolated instances:
+
+```typescript
+import { createQueryGate } from 'laravel-query-gate-sdk'
+
+const tenantApi = createQueryGate({
+  baseUrl: 'https://tenant1.api.example.com/query',
+})
+```
+
+### Defining Contracts
+
+Contracts define the shape of your API resources with full TypeScript support:
+
+```typescript
+import { ResourceContract } from 'laravel-query-gate-sdk'
+
+interface Post {
+  id: number
+  title: string
+  content: string
+  status: 'draft' | 'published'
+  created_at: string
+}
+
+interface CreatePostPayload {
+  title: string
+  content: string
+}
+
+interface UpdatePostPayload {
+  title?: string
+  content?: string
+  status?: 'draft' | 'published'
+}
+
+interface PostContract extends ResourceContract {
+  get: Post[]
+  create: CreatePostPayload
+  update: UpdatePostPayload
+
+  actions: {
+    publish: {
+      method: 'post'
+      payload?: never
+      response: Post
+    }
+    bulkPublish: {
+      method: 'post'
+      payload: { ids: number[] }
+      response: { updated: number }
+    }
+  }
+}
+```
+
+### Read Operations
+
+```typescript
+// Fetch all posts
+const posts = await queryGate<PostContract>('posts').get()
+
+// Fetch single post by ID (uses detail action)
+const post = await queryGate<PostContract>('posts').id(1).get()
+
+// With filters and sorting
+const publishedPosts = await queryGate<PostContract>('posts')
+  .filter('status', 'eq', 'published')
+  .filter('created_at', 'gte', '2024-01-01')
+  .sort('created_at', 'desc')
+  .get()
+```
+
+### Write Operations
+
+```typescript
+// Create
+const newPost = await queryGate<PostContract>('posts').post({
+  title: 'My New Post',
+  content: 'Hello, world!',
+})
+
+// Update
+const updatedPost = await queryGate<PostContract>('posts')
+  .id(1)
+  .patch({
+    title: 'Updated Title',
+    status: 'published',
+  })
+
+// Delete
+await queryGate<PostContract>('posts').id(1).delete()
+```
+
+### Custom Actions
+
+```typescript
+// Action without payload: POST /query/posts/1/publish
+const publishedPost = await queryGate<PostContract>('posts')
+  .id(1)
+  .action('publish')
+  .post()
+
+// Action with payload: POST /query/posts/bulk-publish
+const result = await queryGate<PostContract>('posts')
+  .action('bulkPublish')
+  .post({ ids: [1, 2, 3, 4, 5] })
+
+// GET action: GET /query/posts/stats
+const stats = await queryGate<PostContract>('posts')
+  .action('stats')
+  .get()
+```
+
+### Query Builder Methods
+
+| Method | Description |
+|--------|-------------|
+| `.filter(field, operator, value)` | Add filters (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `in`, `not_in`, `between`) |
+| `.sort(field, direction)` | Sort by field (`asc` or `desc`) |
+| `.id(value)` | Target specific resource by ID |
+| `.action(name)` | Call custom action endpoint |
+| `.get()` | Execute GET request |
+| `.post(payload)` | Execute POST request |
+| `.patch(payload)` | Execute PATCH request |
+| `.delete()` | Execute DELETE request |
+
+### Type Safety
+
+TypeScript enforces correct usage at compile time:
+
+```typescript
+// ✓ Correct - publish action doesn't require payload
+await queryGate<PostContract>('posts').id(1).action('publish').post()
+
+// ✗ Error - bulkPublish requires { ids: number[] }
+await queryGate<PostContract>('posts').action('bulkPublish').post()
+
+// ✗ Error - 'invalid' is not a valid status
+await queryGate<PostContract>('posts').id(1).patch({ status: 'invalid' })
+```
 
 ## Testing
 

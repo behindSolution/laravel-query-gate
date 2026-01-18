@@ -7,6 +7,7 @@ use BehindSolution\LaravelQueryGate\Tests\Fixtures\Comment;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Post;
 use BehindSolution\LaravelQueryGate\Tests\Fixtures\Product;
 use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\ApproveCommentAction;
+use BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\FetchAllAction;
 use BehindSolution\LaravelQueryGate\Tests\TestCase;
 use Illuminate\Support\Str;
 
@@ -420,5 +421,110 @@ class AliasWithCrudTest extends TestCase
         $response = $this->getJson("/query/posts/{$draftPost->id}/detail");
 
         $response->assertStatus(404);
+    }
+
+    public function testSimplifiedDetailRouteWithNumericId(): void
+    {
+        $post = Post::create(['title' => 'Simplified Detail Test']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        // GET /query/posts/1 should call detail action
+        $response = $this->getJson("/query/posts/{$post->id}");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['title' => 'Simplified Detail Test']);
+    }
+
+    public function testSimplifiedDetailRouteWithUuid(): void
+    {
+        $product = Product::create([
+            'name' => 'UUID Product Detail',
+            'price' => 99.99,
+        ]);
+
+        config()->set('query-gate.models.' . Product::class, QueryGate::make()
+            ->alias('products')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        // GET /query/products/{uuid} should call detail action
+        $response = $this->getJson("/query/products/{$product->id}");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['name' => 'UUID Product Detail']);
+    }
+
+    public function testSimplifiedRouteDoesNotConflictWithCustomGetAction(): void
+    {
+        Post::create(['title' => 'Post 1']);
+        Post::create(['title' => 'Post 2']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->detail()
+                ->use(FetchAllAction::class)
+            )
+        );
+
+        // GET /query/posts/fetch-all should call custom action, not detail
+        $response = $this->getJson('/query/posts/fetch-all');
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'custom_action' => true,
+            'message' => 'This is a custom GET action',
+        ]);
+    }
+
+    public function testSimplifiedRouteCallsDetailWhenParamIsNotAction(): void
+    {
+        $post = Post::create(['title' => 'Real Post']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions
+                ->detail()
+                ->use(FetchAllAction::class)
+            )
+        );
+
+        // GET /query/posts/123 should call detail (123 is not a registered action)
+        $response = $this->getJson("/query/posts/{$post->id}");
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['title' => 'Real Post']);
+        $response->assertJsonMissing(['custom' => true]);
+    }
+
+    public function testSimplifiedDetailRouteReturns404WhenNotFound(): void
+    {
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->detail())
+        );
+
+        $response = $this->getJson('/query/posts/99999');
+
+        $response->assertStatus(404);
+    }
+
+    public function testSimplifiedDetailRouteReturns405WhenDetailNotConfigured(): void
+    {
+        $post = Post::create(['title' => 'Test Post']);
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->actions(fn ($actions) => $actions->update(fn ($a) => $a->validation(['title' => 'string'])))
+        );
+
+        // detail action is not configured, should return 405
+        $response = $this->getJson("/query/posts/{$post->id}");
+
+        $response->assertStatus(405);
     }
 }

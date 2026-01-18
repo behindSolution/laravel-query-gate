@@ -35,6 +35,16 @@ class QueryGateController
         return $this->queryExecutor->execute($context, $configuration);
     }
 
+    public function show(Request $request, string $model, string $id)
+    {
+        // Check if $id is actually a custom action name
+        if ($this->isRegisteredAction($request, $id)) {
+            return $this->executeAction($request, $id);
+        }
+
+        return $this->executeAction($request, 'detail', $id);
+    }
+
     public function store(Request $request)
     {
         if ($custom = $this->resolveRequestedAction($request, 'create')) {
