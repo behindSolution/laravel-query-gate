@@ -184,6 +184,11 @@ class QueryExecutor
         $select = $configuration['select'] ?? [];
 
         if ($select === [] || !$this->hasNonEmptyStrings($select)) {
+            // Wrap Collection in 'data' for consistency when pagination is 'none'
+            if ($result instanceof Collection) {
+                return ['data' => $result->values()->all()];
+            }
+
             return $result;
         }
 
@@ -207,7 +212,7 @@ class QueryExecutor
         }
 
         if ($result instanceof Collection) {
-            return $this->filterCollection($result, $tree);
+            return ['data' => $this->filterCollection($result, $tree)->values()->all()];
         }
 
         if ($result instanceof Arrayable) {
