@@ -1,23 +1,54 @@
 # Laravel Query Gate
 
-Generate queryable APIs for Laravel applications.
+[![Latest Version](https://img.shields.io/packagist/v/behindsolution/laravel-query-gate.svg)](https://packagist.org/packages/behindsolution/laravel-query-gate)
+[![Tests](https://github.com/behindSolution/QueryGate/actions/workflows/tests.yml/badge.svg)](https://github.com/behindSolution/QueryGate/actions/workflows/tests.yml)
+[![Total Downloads](https://img.shields.io/packagist/dt/behindsolution/laravel-query-gate.svg)](https://packagist.org/packages/behindsolution/laravel-query-gate)
+[![License](https://img.shields.io/packagist/l/behindsolution/laravel-query-gate.svg)](LICENSE)
 
-## Documentation
+A lightweight, declarative API builder for Laravel with **API versioning**, **frontend SDK**, and **zero boilerplate**.
 
-You can find the full documentation at [https://laravelquerygate.com](https://laravelquerygate.com).
+## Why Query Gate?
 
-## Example Project
+| Feature        | Query Gate | Laravel Orion |
+|----------------|----------|---------------|
+| API Versioning | ✅ Built-in | ❌             |
+| Open API       | ✅ | ❌             |
+| Laravel 9+     | ✅ | ❌             |
+| Zero Config    | ✅ | ⚠️            |
 
-Check out a real-world example at [https://github.com/behindSolution/LQG-example](https://github.com/behindSolution/LQG-example).
+## Quick Start
+```php
+use BehindSolution\LaravelQueryGate\Traits\HasQueryGate;
 
-## Frontend SDK
+class User extends Model
+{
+    use HasQueryGate;
+    
+    public static function queryGate(): QueryGate
+    {
+        return QueryGate::make()
+            ->filters(['name' => 'string', 'email' => 'email'])
+            ->allowedFilters(['name' => ['like'], 'email' => ['eq']])
+            ->sorts(['name', 'created_at']);
+    }
+}
+```
+```bash
+# That's it! Your API is ready:
+GET /query/users?filter[name][like]=John&sort=-created_at
+```
 
-Check out a real-world example at [https://github.com/behindSolution/laravel-query-gate-sdk](https://github.com/behindSolution/laravel-query-gate-sdk).
+## Ecosystem
 
-## Community
+- [Documentation](https://laravelquerygate.com)
+- [Example Project](https://github.com/behindSolution/LQG-example)
+- [Frontend SDK](https://github.com/behindSolution/laravel-query-gate-sdk)
+- [Discord Community](https://discord.gg/nrRyvxVf)
 
-Join our Discord community: [https://discord.gg/nrRyvxVf](https://discord.gg/nrRyvxVf)
+## 🤝 Contributing
 
-## License
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-Released under the [MIT License](LICENSE).
+## 📄 License
+
+MIT
