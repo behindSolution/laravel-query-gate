@@ -10,6 +10,10 @@ You can find the full documentation at [https://laravelquerygate.com](https://la
 
 Check out a real-world example at [https://github.com/behindSolution/LQG-example](https://github.com/behindSolution/LQG-example).
 
+## Frontend SDK
+
+Check out a real-world example at [https://github.com/behindSolution/laravel-query-gate-sdk](https://github.com/behindSolution/laravel-query-gate-sdk).
+
 ## Community
 
 Join our Discord community: [https://discord.gg/nrRyvxVf](https://discord.gg/nrRyvxVf)
