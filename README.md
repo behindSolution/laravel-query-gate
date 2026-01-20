@@ -13,7 +13,7 @@ A lightweight, declarative API builder for Laravel with **API versioning**, **fr
 |----------------|----------|---------------|
 | API Versioning | ✅ Built-in | ❌             |
 | Open API       | ✅ | ❌             |
-| Laravel 9+     | ✅ | ❌             |
+| Laravel 10+    | ✅ | ❌             |
 | Zero Config    | ✅ | ⚠️            |
 
 ## Quick Start

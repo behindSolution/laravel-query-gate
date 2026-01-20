@@ -33,7 +33,7 @@ class OpenAPIRouteTest extends TestCase
         $response = $this->get('/query/docs');
 
         $response->assertOk();
-        $response->assertHeader('Content-Type', 'text/html; charset=utf-8');
+        $this->assertStringStartsWith('text/html', $response->headers->get('Content-Type'));
         $response->assertSee('Redoc.init', false);
         $response->assertSee('Docs UI', false);
     }

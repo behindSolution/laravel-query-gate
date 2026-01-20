@@ -13,10 +13,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Laravel 9
-          - php: 8.2
-            laravel: 9.*
-            testbench: ^7.0
           # Laravel 10
           - php: 8.2
             laravel: 10.*
