@@ -5,7 +5,7 @@ Query Gate offers a single HTTP entrypoint that turns incoming query parameters 
 ## Requirements
 
 - PHP 8.2+
-- Laravel 9, 10, 11, or 12
+- Laravel 10, 11, or 12
 
 ## Installation
 
