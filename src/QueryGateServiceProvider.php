@@ -4,6 +4,7 @@ namespace BehindSolution\LaravelQueryGate;
 
 use BehindSolution\LaravelQueryGate\Console\MakeQueryGateActionCommand;
 use BehindSolution\LaravelQueryGate\Console\OpenAPICommand;
+use BehindSolution\LaravelQueryGate\Console\TypesCommand;
 use BehindSolution\LaravelQueryGate\Http\Controllers\QueryGateController;
 use BehindSolution\LaravelQueryGate\Http\Controllers\OpenAPIController;
 use BehindSolution\LaravelQueryGate\Http\Middleware\ResolveModelMiddleware;
@@ -183,6 +184,7 @@ class QueryGateServiceProvider extends ServiceProvider
         $this->commands([
             MakeQueryGateActionCommand::class,
             OpenAPICommand::class,
+            TypesCommand::class,
         ]);
     }
 }
