@@ -43,7 +43,7 @@ GET /query/users?filter[name][like]=John&sort=-created_at
 - [Documentation](https://laravelquerygate.com)
 - [Example Project](https://github.com/behindSolution/LQG-example)
 - [Frontend SDK](https://github.com/behindSolution/laravel-query-gate-sdk)
-- [Discord Community](https://discord.gg/nrRyvxVf)
+- [Discord Community](https://discord.gg/ydFBEZ8aTD)
 
 ## 🤝 Contributing
 
