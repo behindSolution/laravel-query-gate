@@ -6,20 +6,22 @@ use Illuminate\Support\Str;
 
 class TypesGenerator
 {
+    protected const BUILTIN_ACTIONS = ['create', 'update', 'delete', 'detail'];
+
     /**
      * Generate TypeScript content for a model definition.
      *
-     * @param string $modelClass
-     * @param array<string, mixed> $definition
-     * @param string|null $version
+     * @param  string  $modelClass
+     * @param  array<string, mixed>  $definition
+     * @param  string|null  $version
      * @return string
      */
     public function generate(string $modelClass, array $definition, ?string $version = null): string
     {
         $alias = $definition['alias'] ?? $this->classToAlias($modelClass);
-        $pascalAlias = Str::studly($alias);
+        $entity = $this->entityName($alias);
 
-        return $this->buildContent($pascalAlias, $alias, $definition, $version);
+        return $this->buildContent($entity, $alias, $definition, $version);
     }
 
     /**
@@ -33,15 +35,23 @@ class TypesGenerator
     }
 
     /**
-     * Build the TypeScript file content.
+     * Derive the singular PascalCase entity name from an alias.
+     */
+    protected function entityName(string $alias): string
+    {
+        return Str::studly(Str::singular($alias));
+    }
+
+    /**
+     * Build the full TypeScript file content.
      *
-     * @param string $pascal
-     * @param string $alias
-     * @param array<string, mixed> $definition
-     * @param string|null $version
+     * @param  string  $entity
+     * @param  string  $alias
+     * @param  array<string, mixed>  $definition
+     * @param  string|null  $version
      * @return string
      */
-    protected function buildContent(string $pascal, string $alias, array $definition, ?string $version): string
+    protected function buildContent(string $entity, string $alias, array $definition, ?string $version): string
     {
         $lines = [];
         $lines[] = "// {$alias}.ts";
@@ -52,210 +62,336 @@ class TypesGenerator
         }
 
         $lines[] = '';
-
-        // Filters interface
-        if (!empty($definition['filters'])) {
-            $lines[] = $this->generateFiltersInterface($pascal, $definition['filters']);
-        }
-
-        // Operators interface
-        if (!empty($definition['filter_operators'])) {
-            $lines[] = $this->generateOperatorsInterface($pascal, $definition['filter_operators']);
-        }
-
-        // Select type
-        if (!empty($definition['select'])) {
-            $lines[] = $this->generateSelectType($pascal, $definition['select']);
-        }
-
-        // Sort type
-        if (!empty($definition['sorts'])) {
-            $lines[] = $this->generateSortType($pascal, $definition['sorts']);
-        }
-
-        // Actions interface
-        if (!empty($definition['actions'])) {
-            $lines[] = $this->generateActionsInterface($pascal, $definition['actions']);
-        }
-
-        // Config object
-        $lines[] = $this->generateConfigObject($alias, $definition, $version);
-
-        return implode("\n", array_filter($lines, fn ($line) => $line !== null));
-    }
-
-    /**
-     * Generate the filters interface.
-     *
-     * @param string $pascal
-     * @param array<string, array<int, string>> $filters
-     * @return string
-     */
-    protected function generateFiltersInterface(string $pascal, array $filters): string
-    {
-        $lines = [];
-        $lines[] = "/** Filterable fields for {$pascal} */";
-        $lines[] = "export interface {$pascal}Filters {";
-
-        foreach ($filters as $field => $rules) {
-            $tsType = $this->phpRulesToTypeScriptType($rules);
-            $formattedField = $this->formatKey($field);
-            $lines[] = "  {$formattedField}?: {$tsType}";
-        }
-
-        $lines[] = '}';
+        $lines[] = "import type { ResourceContract } from 'laravel-query-gate-sdk'";
         $lines[] = '';
 
-        return implode("\n", $lines);
-    }
+        $select = $definition['select'] ?? [];
+        $filters = $definition['filters'] ?? [];
+        $actions = $definition['actions'] ?? [];
+        $hasEntity = !empty($select);
 
-    /**
-     * Generate the operators interface.
-     *
-     * @param string $pascal
-     * @param array<string, array<int, string>> $operators
-     * @return string
-     */
-    protected function generateOperatorsInterface(string $pascal, array $operators): string
-    {
-        $lines = [];
-        $lines[] = "/** Allowed operators per field */";
-        $lines[] = "export interface {$pascal}Operators {";
-
-        foreach ($operators as $field => $ops) {
-            $formattedField = $this->formatKey($field);
-            $opsString = implode(' | ', array_map(fn ($op) => "'{$op}'", $ops));
-            $lines[] = "  {$formattedField}: ({$opsString})[]";
+        // Entity interface
+        if ($hasEntity) {
+            $lines[] = $this->generateEntityInterface($entity, $select, $filters);
         }
 
-        $lines[] = '}';
-        $lines[] = '';
+        // Create payload
+        $createPayloadName = null;
 
-        return implode("\n", $lines);
-    }
+        if (isset($actions['create'])) {
+            $validation = $actions['create']['validation'] ?? null;
 
-    /**
-     * Generate the select type.
-     *
-     * @param string $pascal
-     * @param array<int, string> $select
-     * @return string
-     */
-    protected function generateSelectType(string $pascal, array $select): string
-    {
-        $fieldsString = implode(' | ', array_map(fn ($field) => "'{$field}'", $select));
-
-        return "/** Selectable fields */\nexport type {$pascal}SelectField = {$fieldsString}\n";
-    }
-
-    /**
-     * Generate the sort type.
-     *
-     * @param string $pascal
-     * @param array<int, string> $sorts
-     * @return string
-     */
-    protected function generateSortType(string $pascal, array $sorts): string
-    {
-        $fieldsString = implode(' | ', array_map(fn ($field) => "'{$field}'", $sorts));
-
-        return "/** Sortable fields */\nexport type {$pascal}SortField = {$fieldsString}\n";
-    }
-
-    /**
-     * Generate the actions interface.
-     *
-     * @param string $pascal
-     * @param array<string, array<string, mixed>> $actions
-     * @return string
-     */
-    protected function generateActionsInterface(string $pascal, array $actions): string
-    {
-        $lines = [];
-        $lines[] = "/** Available actions */";
-        $lines[] = "export interface {$pascal}Actions {";
-
-        foreach ($actions as $action => $config) {
-            $formattedAction = $this->formatKey($action);
-            $method = $config['method'] ?? 'POST';
-            $lines[] = "  {$formattedAction}: { method: '{$method}' }";
-        }
-
-        $lines[] = '}';
-        $lines[] = '';
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Generate the config object.
-     *
-     * @param string $alias
-     * @param array<string, mixed> $definition
-     * @param string|null $version
-     * @return string
-     */
-    protected function generateConfigObject(string $alias, array $definition, ?string $version): string
-    {
-        $lines = [];
-        $lines[] = '/** Resource configuration metadata */';
-        $lines[] = "export const {$this->toCamelCase($alias)}Config = {";
-        $lines[] = "  alias: '{$alias}',";
-
-        // Filters
-        if (!empty($definition['filters'])) {
-            $filterFields = array_keys($definition['filters']);
-            $filtersString = implode(', ', array_map(fn ($f) => "'{$f}'", $filterFields));
-            $lines[] = "  filters: [{$filtersString}],";
-        }
-
-        // Operators
-        if (!empty($definition['filter_operators'])) {
-            $lines[] = '  operators: {';
-            foreach ($definition['filter_operators'] as $field => $ops) {
-                $formattedField = $this->formatKey($field);
-                $opsString = implode(', ', array_map(fn ($op) => "'{$op}'", $ops));
-                $lines[] = "    {$formattedField}: [{$opsString}],";
+            if (is_array($validation) && $validation !== []) {
+                $createPayloadName = "Create{$entity}Payload";
+                $lines[] = $this->generatePayloadInterface($createPayloadName, $validation);
             }
-            $lines[] = '  },';
         }
 
-        // Selects
-        if (!empty($definition['select'])) {
-            $selectsString = implode(', ', array_map(fn ($s) => "'{$s}'", $definition['select']));
-            $lines[] = "  selects: [{$selectsString}],";
+        // Update payload
+        $updatePayloadName = null;
+
+        if (isset($actions['update'])) {
+            $validation = $actions['update']['validation'] ?? null;
+
+            if (is_array($validation) && $validation !== []) {
+                $updatePayloadName = "Update{$entity}Payload";
+                $lines[] = $this->generatePayloadInterface($updatePayloadName, $validation);
+            }
         }
 
-        // Sorts
-        if (!empty($definition['sorts'])) {
-            $sortsString = implode(', ', array_map(fn ($s) => "'{$s}'", $definition['sorts']));
-            $lines[] = "  sorts: [{$sortsString}],";
+        // Contract
+        $lines[] = $this->generateContract($entity, $hasEntity, $createPayloadName, $updatePayloadName, $actions);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Generate the entity interface from select fields with types inferred from filters.
+     *
+     * @param  string  $entity
+     * @param  array<int, string>  $select
+     * @param  array<string, mixed>  $filters
+     * @return string
+     */
+    protected function generateEntityInterface(string $entity, array $select, array $filters): string
+    {
+        $lines = [];
+        $lines[] = "/** {$entity} entity */";
+        $lines[] = "export interface {$entity} {";
+
+        foreach ($select as $field) {
+            $formattedField = $this->formatKey($field);
+            $tsType = 'unknown';
+
+            if (isset($filters[$field])) {
+                $rules = $this->normalizeRules($filters[$field]);
+                $tsType = $this->phpRulesToTypeScriptType($rules);
+
+                if ($this->isNullable($rules)) {
+                    $tsType .= ' | null';
+                }
+            }
+
+            $lines[] = "  {$formattedField}: {$tsType}";
         }
 
-        // Pagination
-        $paginationMode = $definition['pagination']['mode'] ?? 'classic';
-        $lines[] = "  pagination: '{$paginationMode}',";
-
-        // Version
-        if ($version !== null) {
-            $lines[] = "  version: '{$version}',";
-        }
-
-        $lines[] = '} as const';
+        $lines[] = '}';
         $lines[] = '';
 
         return implode("\n", $lines);
     }
 
     /**
-     * Convert PHP validation rules to TypeScript type.
+     * Generate a payload interface from action validation rules.
      *
-     * @param array<int, string> $rules
+     * @param  string  $name
+     * @param  array<string, mixed>  $validationRules
+     * @return string
+     */
+    protected function generatePayloadInterface(string $name, array $validationRules): string
+    {
+        $lines = [];
+        $lines[] = "/** {$name} */";
+        $lines[] = "export interface {$name} {";
+
+        foreach ($validationRules as $field => $rules) {
+            if (str_contains($field, '.*')) {
+                continue;
+            }
+
+            $rules = $this->normalizeRules($rules);
+            $formattedField = $this->formatKey($field);
+            $required = $this->isRequiredField($rules);
+            $tsType = $this->resolveFieldType($field, $rules, $validationRules);
+
+            if ($this->isNullable($rules)) {
+                $tsType .= ' | null';
+            }
+
+            $optional = $required ? '' : '?';
+            $lines[] = "  {$formattedField}{$optional}: {$tsType}";
+        }
+
+        $lines[] = '}';
+        $lines[] = '';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Generate the ResourceContract interface.
+     *
+     * @param  string  $entity
+     * @param  bool  $hasEntity
+     * @param  string|null  $createPayloadName
+     * @param  string|null  $updatePayloadName
+     * @param  array<string, mixed>  $actions
+     * @return string
+     */
+    protected function generateContract(
+        string $entity,
+        bool $hasEntity,
+        ?string $createPayloadName,
+        ?string $updatePayloadName,
+        array $actions,
+    ): string {
+        $contractName = "{$entity}Contract";
+        $lines = [];
+        $lines[] = "/** Contract for the {$entity} resource */";
+        $lines[] = "export interface {$contractName} extends ResourceContract {";
+
+        // get
+        $getType = $hasEntity ? "{$entity}[]" : 'unknown[]';
+        $lines[] = "  get: {$getType}";
+
+        // create
+        if (isset($actions['create'])) {
+            $createType = $createPayloadName ?? 'Record<string, unknown>';
+            $lines[] = "  create: {$createType}";
+        }
+
+        // update
+        if (isset($actions['update'])) {
+            $updateType = $updatePayloadName ?? 'Record<string, unknown>';
+            $lines[] = "  update: {$updateType}";
+        }
+
+        // Custom actions
+        $customActions = array_filter(
+            $actions,
+            fn ($key) => !in_array($key, self::BUILTIN_ACTIONS, true),
+            ARRAY_FILTER_USE_KEY,
+        );
+
+        if ($customActions !== []) {
+            $lines[] = '  actions: {';
+
+            foreach ($customActions as $actionName => $config) {
+                $actionLines = $this->generateActionEntry($actionName, $config);
+
+                foreach ($actionLines as $line) {
+                    $lines[] = $line;
+                }
+            }
+
+            $lines[] = '  }';
+        }
+
+        $lines[] = '}';
+        $lines[] = '';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Generate a single action entry within the actions block.
+     *
+     * @param  string  $actionName
+     * @param  array<string, mixed>  $config
+     * @return array<int, string>
+     */
+    protected function generateActionEntry(string $actionName, array $config): array
+    {
+        $formattedName = $this->formatKey($actionName);
+        $method = strtolower($config['method'] ?? 'post');
+        $validation = $config['validation'] ?? null;
+
+        $lines = [];
+        $lines[] = "    {$formattedName}: {";
+        $lines[] = "      method: '{$method}'";
+
+        if (is_array($validation) && $validation !== []) {
+            $payloadType = $this->generateInlinePayloadType($validation);
+            $lines[] = "      payload: {$payloadType}";
+        } else {
+            $lines[] = '      payload?: never';
+        }
+
+        $lines[] = '      response: unknown';
+        $lines[] = '    }';
+
+        return $lines;
+    }
+
+    /**
+     * Generate an inline object type from validation rules.
+     *
+     * @param  array<string, mixed>  $validationRules
+     * @return string
+     */
+    protected function generateInlinePayloadType(array $validationRules): string
+    {
+        $parts = [];
+
+        foreach ($validationRules as $field => $rules) {
+            if (str_contains($field, '.*')) {
+                continue;
+            }
+
+            $rules = $this->normalizeRules($rules);
+            $formattedField = $this->formatKey($field);
+            $required = $this->isRequiredField($rules);
+            $tsType = $this->resolveFieldType($field, $rules, $validationRules);
+
+            if ($this->isNullable($rules)) {
+                $tsType .= ' | null';
+            }
+
+            $optional = $required ? '' : '?';
+            $parts[] = "{$formattedField}{$optional}: {$tsType}";
+        }
+
+        return '{ ' . implode(', ', $parts) . ' }';
+    }
+
+    /**
+     * Resolve the TypeScript type for a field, handling array item types via field.* notation.
+     *
+     * @param  string  $field
+     * @param  array<int, mixed>  $rules
+     * @param  array<string, mixed>  $allRules
+     * @return string
+     */
+    protected function resolveFieldType(string $field, array $rules, array $allRules): string
+    {
+        $baseType = $this->phpRulesToTypeScriptType($rules);
+
+        if ($baseType === 'unknown[]' && isset($allRules["{$field}.*"])) {
+            $itemRules = $this->normalizeRules($allRules["{$field}.*"]);
+            $itemType = $this->phpRulesToTypeScriptType($itemRules);
+
+            return "{$itemType}[]";
+        }
+
+        return $baseType;
+    }
+
+    /**
+     * Normalize validation rules to an array of strings.
+     *
+     * @param  mixed  $rules
+     * @return array<int, string>
+     */
+    protected function normalizeRules($rules): array
+    {
+        if (is_string($rules)) {
+            return explode('|', $rules);
+        }
+
+        if (is_array($rules)) {
+            return $rules;
+        }
+
+        return [];
+    }
+
+    /**
+     * Check if validation rules include 'required'.
+     *
+     * @param  array<int, mixed>  $rules
+     * @return bool
+     */
+    protected function isRequiredField(array $rules): bool
+    {
+        foreach ($rules as $rule) {
+            if (is_string($rule) && strtolower($rule) === 'required') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if validation rules include 'nullable'.
+     *
+     * @param  array<int, mixed>  $rules
+     * @return bool
+     */
+    protected function isNullable(array $rules): bool
+    {
+        foreach ($rules as $rule) {
+            if (is_string($rule) && strtolower($rule) === 'nullable') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Convert PHP validation rules to a TypeScript type.
+     *
+     * @param  array<int, mixed>  $rules
      * @return string
      */
     protected function phpRulesToTypeScriptType(array $rules): string
     {
         foreach ($rules as $rule) {
+            if (!is_string($rule)) {
+                continue;
+            }
+
             $rule = strtolower($rule);
 
             if (in_array($rule, ['integer', 'int', 'numeric'], true)) {
@@ -266,16 +402,20 @@ class TypesGenerator
                 return 'boolean';
             }
 
-            if (in_array($rule, ['array'], true)) {
+            if ($rule === 'array') {
                 return 'unknown[]';
             }
 
             if (in_array($rule, ['date', 'date_format'], true)) {
                 return 'string';
             }
+
+            if (in_array($rule, ['string', 'email', 'url'], true)) {
+                return 'string';
+            }
         }
 
-        return 'string';
+        return 'unknown';
     }
 
     /**
