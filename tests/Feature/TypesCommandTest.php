@@ -203,6 +203,52 @@ class TypesCommandTest extends TestCase
         @rmdir($defaultPath);
     }
 
+    public function testQuotesKeysWithSpecialCharacters(): void
+    {
+        $this->cleanupOutputDir();
+
+        config()->set('query-gate.models.' . Post::class, QueryGate::make()
+            ->alias('posts')
+            ->filters([
+                'title' => ['string'],
+                'author.name' => ['string'],
+            ])
+            ->allowedFilters([
+                'title' => ['eq', 'like'],
+                'author.name' => ['eq', 'like'],
+            ])
+            ->select(['id', 'title'])
+            ->actions(fn ($actions) => $actions
+                ->create()
+                ->delete()
+                ->use(\BehindSolution\LaravelQueryGate\Tests\Stubs\Actions\BulkPublishPostsAction::class)
+            )
+        );
+
+        $this->artisan('qg:types', ['--output' => $this->outputDir])
+            ->assertExitCode(0);
+
+        $postsContent = file_get_contents($this->outputDir . '/posts.ts');
+        $this->assertIsString($postsContent);
+
+        // Dotted keys must be quoted in interfaces
+        $this->assertStringContainsString("'author.name'?: string", $postsContent);
+        $this->assertStringContainsString("'author.name': ('eq' | 'like')[]", $postsContent);
+
+        // Non-special keys should NOT be quoted
+        $this->assertStringContainsString('title?: string', $postsContent);
+        $this->assertStringNotContainsString("'title'?:", $postsContent);
+
+        // Hyphenated keys must be quoted in actions interface
+        $this->assertStringContainsString("'bulk-publish': { method: 'POST' }", $postsContent);
+
+        // Non-special action keys should NOT be quoted
+        $this->assertStringContainsString("create: { method: 'POST' }", $postsContent);
+
+        // Config object operators should also quote dotted keys
+        $this->assertStringContainsString("'author.name': ['eq', 'like']", $postsContent);
+    }
+
     public function testGeneratesTypeWithClassNameWhenNoAlias(): void
     {
         $this->cleanupOutputDir();

@@ -99,7 +99,8 @@ class TypesGenerator
 
         foreach ($filters as $field => $rules) {
             $tsType = $this->phpRulesToTypeScriptType($rules);
-            $lines[] = "  {$field}?: {$tsType}";
+            $formattedField = $this->formatKey($field);
+            $lines[] = "  {$formattedField}?: {$tsType}";
         }
 
         $lines[] = '}';
@@ -122,8 +123,9 @@ class TypesGenerator
         $lines[] = "export interface {$pascal}Operators {";
 
         foreach ($operators as $field => $ops) {
+            $formattedField = $this->formatKey($field);
             $opsString = implode(' | ', array_map(fn ($op) => "'{$op}'", $ops));
-            $lines[] = "  {$field}: ({$opsString})[]";
+            $lines[] = "  {$formattedField}: ({$opsString})[]";
         }
 
         $lines[] = '}';
@@ -174,8 +176,9 @@ class TypesGenerator
         $lines[] = "export interface {$pascal}Actions {";
 
         foreach ($actions as $action => $config) {
+            $formattedAction = $this->formatKey($action);
             $method = $config['method'] ?? 'POST';
-            $lines[] = "  {$action}: { method: '{$method}' }";
+            $lines[] = "  {$formattedAction}: { method: '{$method}' }";
         }
 
         $lines[] = '}';
@@ -210,8 +213,9 @@ class TypesGenerator
         if (!empty($definition['filter_operators'])) {
             $lines[] = '  operators: {';
             foreach ($definition['filter_operators'] as $field => $ops) {
+                $formattedField = $this->formatKey($field);
                 $opsString = implode(', ', array_map(fn ($op) => "'{$op}'", $ops));
-                $lines[] = "    {$field}: [{$opsString}],";
+                $lines[] = "    {$formattedField}: [{$opsString}],";
             }
             $lines[] = '  },';
         }
@@ -272,6 +276,19 @@ class TypesGenerator
         }
 
         return 'string';
+    }
+
+    /**
+     * Format a property key for TypeScript.
+     * Keys with special characters (hyphens, dots, etc.) must be quoted.
+     */
+    protected function formatKey(string $key): string
+    {
+        if (preg_match('/[^a-zA-Z0-9_$]/', $key) || preg_match('/^[0-9]/', $key)) {
+            return "'{$key}'";
+        }
+
+        return $key;
     }
 
     /**
