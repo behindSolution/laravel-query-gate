@@ -48,6 +48,20 @@ trait InteractsWithQueryGateAction
             'status' => $status,
         ];
 
+        if (method_exists($action, 'lockable')) {
+            $lockable = $action->lockable();
+
+            if ($lockable === true) {
+                $configuration['lockable'] = ['ttl' => 5];
+            } elseif (is_array($lockable) && $lockable !== []) {
+                $configuration['lockable'] = $lockable;
+            }
+
+            if (isset($configuration['lockable']) && method_exists($action, 'lockKey')) {
+                $configuration['lockable']['key'] = $action->lockKey(...);
+            }
+        }
+
         return Arr::where($configuration, static function ($value) {
             return $value !== null && $value !== [];
         });

@@ -57,7 +57,7 @@ class FilterParser
                 }
 
                 if ($allowed !== null && !in_array($operator, $allowed, true)) {
-                    throw new HttpException(422, sprintf('The "%s" operator is not allowed for the "%s" filter.', $operator, $field));
+                    throw new HttpException(422, __('The ":operator" operator is not allowed for the ":field" filter.', ['operator' => $operator, 'field' => $field]));
                 }
 
                 $normalizedValue = $this->normalizeValue($value, $operator, $field);
@@ -65,7 +65,7 @@ class FilterParser
                 if ($rules !== null) {
                     $this->validateValue($field, $operator, $normalizedValue, $rules);
                 } elseif ($definitions !== [] && $callback === null) {
-                    throw new HttpException(422, sprintf('Filtering by "%s" is not allowed.', $field));
+                    throw new HttpException(422, __('Filtering by ":field" is not allowed.', ['field' => $field]));
                 }
 
                 $parsed[] = [
@@ -90,7 +90,7 @@ class FilterParser
             $normalized = $this->normalizeArrayValue($value);
 
             if ($normalized === []) {
-                throw new HttpException(422, sprintf('The filter "%s" must receive at least one value.', $field));
+                throw new HttpException(422, __('The filter ":field" must receive at least one value.', ['field' => $field]));
             }
 
             return $normalized;
@@ -100,7 +100,7 @@ class FilterParser
             $values = $this->normalizeArrayValue($value);
 
             if (count($values) !== 2) {
-                throw new HttpException(422, sprintf('The filter "%s" must receive exactly two values when using the between operator.', $field));
+                throw new HttpException(422, __('The filter ":field" must receive exactly two values when using the between operator.', ['field' => $field]));
             }
 
             return $values;

@@ -31,7 +31,7 @@ trait HasSorting
         if ($allowedSorts !== []) {
             foreach ($sorts as $sort) {
                 if (!in_array($sort['field'], $allowedSorts, true)) {
-                    throw new HttpException(422, sprintf('Sorting by "%s" is not allowed.', $sort['field']));
+                    throw new HttpException(422, __('Sorting by ":field" is not allowed.', ['field' => $sort['field']]));
                 }
             }
         }

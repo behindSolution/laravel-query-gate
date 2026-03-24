@@ -89,7 +89,7 @@ class ResolveModelMiddleware
         }
 
         if (!class_exists($model) || !is_subclass_of($model, Model::class)) {
-            throw new HttpException(400, 'The model parameter must reference a configured alias or an Eloquent model class.');
+            throw new HttpException(400, __('The model parameter must reference a configured alias or an Eloquent model class.'));
         }
 
         $request->query->set('model', $model);
@@ -110,7 +110,7 @@ class ResolveModelMiddleware
         }
 
         if (!is_string($model) || trim($model) === '') {
-            throw new HttpException(400, 'The model parameter is required.');
+            throw new HttpException(400, __('The model parameter is required.'));
         }
 
         return trim($model);
@@ -124,7 +124,7 @@ class ResolveModelMiddleware
         $definition = $definitions[$modelClass] ?? null;
 
         if ($definition === null) {
-            throw new HttpException(404, 'The requested model is not exposed through Query Gate.');
+            throw new HttpException(404, __('The requested model is not exposed through Query Gate.'));
         }
 
         if ($definition instanceof QueryGate) {
@@ -135,7 +135,7 @@ class ResolveModelMiddleware
             return $definition;
         }
 
-        throw new HttpException(500, 'Query Gate model definitions must use QueryGate::make() or the HasQueryGate trait.');
+        throw new HttpException(500, __('Query Gate model definitions must use QueryGate::make() or the HasQueryGate trait.'));
     }
 
     protected function createBuilder(string $modelClass): Builder
@@ -235,7 +235,7 @@ class ResolveModelMiddleware
 
         if (is_string($requestedVersion) && $requestedVersion !== '') {
             if (!isset($definitions[$requestedVersion])) {
-                throw new HttpException(404, sprintf('Version "%s" is not available for this resource.', $requestedVersion));
+                throw new HttpException(404, __('Version ":version" is not available for this resource.', ['version' => $requestedVersion]));
             }
 
             $selected = $requestedVersion;

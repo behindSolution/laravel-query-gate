@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -46,12 +47,14 @@ class ActionExecutor
 
         $this->ensureAuthorized($request, $model, $actionConfiguration, $action);
 
+        $this->ensureNotLocked($action, $request, $modelClass, $actionConfiguration, $identifier, $payload);
+
         if (isset($actionConfiguration['handle']) && $actionConfiguration['handle'] instanceof Closure) {
             $result = $actionConfiguration['handle']($request, $model, $payload);
         } elseif (in_array($action, ['create', 'update', 'delete', 'detail'], true)) {
             $result = $this->defaultHandle($action, $request, $model, $payload, $configuration, $actionConfiguration);
         } else {
-            throw new HttpException(500, sprintf('No handler defined for action "%s".', $action));
+            throw new HttpException(500, __('No handler defined for action ":action".', ['action' => $action]));
         }
 
         if (in_array($action, ['create', 'update', 'delete'], true)) {
@@ -70,7 +73,7 @@ class ActionExecutor
         $actions = $configuration['actions'] ?? [];
 
         if (!is_array($actions) || !array_key_exists($action, $actions)) {
-            throw new HttpException(405, 'The requested action is not allowed for this model.');
+            throw new HttpException(405, __('The requested action is not allowed for this model.'));
         }
 
         $actionConfiguration = $actions[$action];
@@ -80,7 +83,7 @@ class ActionExecutor
         }
 
         if (!is_array($actionConfiguration)) {
-            throw new HttpException(500, 'The action configuration must be an array.');
+            throw new HttpException(500, __('The action configuration must be an array.'));
         }
 
         return $actionConfiguration;
@@ -113,7 +116,7 @@ class ActionExecutor
         }
 
         if ($requiresModel && !$hasIdentifier) {
-            throw new HttpException(400, 'A valid identifier is required for this action.');
+            throw new HttpException(400, __('A valid identifier is required for this action.'));
         }
 
         // Use action-specific query if available, fallback to root query
@@ -131,7 +134,7 @@ class ActionExecutor
         )->first();
 
         if (!$model instanceof Model) {
-            throw new HttpException(404, 'Model not found using the provided identifier.');
+            throw new HttpException(404, __('Model not found using the provided identifier.'));
         }
 
         return $model;
@@ -160,10 +163,7 @@ class ActionExecutor
         }
 
         if (in_array($action, ['create', 'update'], true)) {
-            throw new HttpException(500, sprintf(
-                'The "%s" action requires validation rules. Use ->validation([...]) to define the allowed fields.',
-                $action
-            ));
+            throw new HttpException(500, __('The ":action" action requires validation rules. Use ->validation([...]) to define the allowed fields.', ['action' => $action]));
         }
     }
 
@@ -182,7 +182,7 @@ class ActionExecutor
                 } catch (AuthorizationException $exception) {
                     $message = $exception->getMessage() !== ''
                         ? $exception->getMessage()
-                        : 'You are not authorized to perform this action.';
+                        : __('You are not authorized to perform this action.');
 
                     throw new HttpException(403, $message, $exception);
                 }
@@ -196,13 +196,13 @@ class ActionExecutor
         }
 
         if (!$actionConfiguration['authorize'] instanceof Closure) {
-            throw new HttpException(500, 'The authorize callback must be a closure.');
+            throw new HttpException(500, __('The authorize callback must be a closure.'));
         }
 
         $result = $actionConfiguration['authorize']($request, $model);
 
         if ($result === false) {
-            throw new HttpException(403, 'You are not authorized to perform this action.');
+            throw new HttpException(403, __('You are not authorized to perform this action.'));
         }
     }
 
@@ -218,7 +218,7 @@ class ActionExecutor
 
         foreach ($abilities as $ability) {
             if (!is_string($ability) || $ability === '') {
-                throw new HttpException(500, 'Policy abilities must be non-empty strings.');
+                throw new HttpException(500, __('Policy abilities must be non-empty strings.'));
             }
 
             $normalized[] = $ability;
@@ -421,17 +421,93 @@ class ActionExecutor
         return $result;
     }
 
+    /**
+     * @param array<string, mixed> $actionConfiguration
+     * @param array<string, mixed> $payload
+     */
+    protected function ensureNotLocked(
+        string $action,
+        Request $request,
+        string $modelClass,
+        array $actionConfiguration,
+        ?string $identifier,
+        array $payload
+    ): void {
+        $lockConfig = $actionConfiguration['lockable'] ?? null;
+
+        if (!is_array($lockConfig) || $lockConfig === []) {
+            return;
+        }
+
+        $ttl = max(1, (int) ($lockConfig['ttl'] ?? 5));
+        $key = $this->buildLockKey($action, $request, $modelClass, $lockConfig, $identifier, $payload);
+
+        $lock = Cache::lock($key, $ttl);
+
+        if (!$lock->get()) {
+            throw new HttpException(409, __('Action ":action" is already being processed. Please wait and try again.', [
+                'action' => $action,
+            ]));
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $lockConfig
+     * @param array<string, mixed> $payload
+     */
+    protected function buildLockKey(
+        string $action,
+        Request $request,
+        string $modelClass,
+        array $lockConfig,
+        ?string $identifier,
+        array $payload
+    ): string {
+        if (isset($lockConfig['key']) && $lockConfig['key'] instanceof Closure) {
+            $customKey = $lockConfig['key']($request, $modelClass, $action, $identifier);
+
+            if (is_string($customKey) && $customKey !== '') {
+                return $customKey;
+            }
+        }
+
+        $parts = ['query-gate', 'lock', md5($modelClass), $action];
+
+        if ($identifier !== null && $identifier !== '') {
+            $parts[] = $identifier;
+        }
+
+        if (!empty($lockConfig['forUser'])) {
+            $user = $request->user();
+            $identifier = null;
+
+            if ($user !== null) {
+                $identifier = method_exists($user, 'getAuthIdentifier')
+                    ? $user->getAuthIdentifier()
+                    : ($user->getKey() ?? null);
+            }
+
+            $parts[] = 'u:' . ($identifier ?? 'guest');
+        }
+
+        if ($payload !== []) {
+            ksort($payload);
+            $parts[] = md5(json_encode($payload));
+        }
+
+        return implode(':', $parts);
+    }
+
     protected function ensureRequestMethod(Request $request, array $actionConfiguration, string $action): void
     {
         $expected = strtoupper($actionConfiguration['method'] ?? $this->defaultMethodFor($action));
         $actual = strtoupper($request->getMethod());
 
         if ($expected !== $actual) {
-            throw new HttpException(405, sprintf(
-                'Action "%s" must be invoked using the %s method.',
-                $action,
-                $expected
-            ));
+            throw new HttpException(405, __('Action ":action" must be invoked using the :method method.', [
+                'action' => $action,
+                'method' => $expected,
+            ]));
         }
     }
 
