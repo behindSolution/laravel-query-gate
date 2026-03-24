@@ -57,4 +57,31 @@ abstract class AbstractQueryGateAction implements QueryGateAction
     {
         return [];
     }
+
+    /**
+     * Configure an idempotency lock to prevent duplicate execution.
+     *
+     * Return true for defaults (5s TTL, no user scope),
+     * an array for custom config (e.g. ['ttl' => 30, 'forUser' => true]),
+     * or false to disable (default).
+     *
+     * @return bool|array{ttl?: int, forUser?: bool}
+     */
+    public function lockable(): bool|array
+    {
+        return false;
+    }
+
+    /**
+     * Override to provide a custom lock key.
+     *
+     * When lockable() is enabled and this method is overridden,
+     * it replaces the default key generation logic.
+     *
+     * @return string|null Return a key string, or null to use the default key.
+     */
+    public function lockKey($request, string $modelClass, string $action, ?string $identifier): ?string
+    {
+        return null;
+    }
 }

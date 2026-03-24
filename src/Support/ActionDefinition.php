@@ -38,6 +38,11 @@ class ActionDefinition implements Arrayable
 
     protected ?Closure $query = null;
 
+    /**
+     * @var bool|array{ttl?: int, forUser?: bool, key?: Closure}
+     */
+    protected bool|array $lockable = false;
+
     public function validations(array $rules): self
     {
         $this->validation = $rules;
@@ -156,6 +161,30 @@ class ActionDefinition implements Arrayable
         return $this;
     }
 
+    /**
+     * Configure an idempotency lock to prevent duplicate execution of this action.
+     */
+    public function lockable(int $ttl = 5, bool $forUser = false, ?Closure $key = null): self
+    {
+        if ($ttl < 1) {
+            throw new \InvalidArgumentException('Lock TTL must be at least 1 second.');
+        }
+
+        $config = ['ttl' => $ttl];
+
+        if ($forUser) {
+            $config['forUser'] = true;
+        }
+
+        if ($key !== null) {
+            $config['key'] = $key;
+        }
+
+        $this->lockable = $config;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         $data = array_filter([
@@ -178,6 +207,10 @@ class ActionDefinition implements Arrayable
 
         if ($this->openapiRequestExamples !== []) {
             $data['openapi_request'] = $this->openapiRequestExamples;
+        }
+
+        if (is_array($this->lockable) && $this->lockable !== []) {
+            $data['lockable'] = $this->lockable;
         }
 
         return $data;

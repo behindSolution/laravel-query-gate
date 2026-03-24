@@ -27,7 +27,7 @@ class QueryGateController
         [$model, $configuration, $builder] = $this->resolveQueryContext($request);
 
         if (!empty($configuration['listing_disabled'])) {
-            throw new HttpException(403, 'Listing is not available for this resource.');
+            throw new HttpException(403, __('Listing is not available for this resource.'));
         }
 
         $context = new QueryContext($model, $request, $builder);
@@ -106,7 +106,7 @@ class QueryGateController
 
         // 'detail' is not accessible via /{id}/detail route - use GET /{id} instead
         if ($action === 'detail') {
-            throw new HttpException(404, 'Action not found.');
+            throw new HttpException(404, __('Action not found.'));
         }
 
         return $this->executeAction($request, $action, $identifier);
@@ -167,7 +167,7 @@ class QueryGateController
         $builder = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_BUILDER);
 
         if (!is_string($model) || !$builder instanceof Builder) {
-            throw new HttpException(500, 'Unable to resolve Query Gate context.');
+            throw new HttpException(500, __('Unable to resolve Query Gate context.'));
         }
 
         return [$model, is_array($configuration) ? $configuration : [], $builder];
@@ -182,7 +182,7 @@ class QueryGateController
         $configuration = $request->attributes->get(ResolveModelMiddleware::ATTRIBUTE_CONFIGURATION, []);
 
         if (!is_string($model)) {
-            throw new HttpException(500, 'Unable to resolve Query Gate model.');
+            throw new HttpException(500, __('Unable to resolve Query Gate model.'));
         }
 
         return [$model, is_array($configuration) ? $configuration : []];
